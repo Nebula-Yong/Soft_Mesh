@@ -11,6 +11,7 @@
 #include "soc_osal.h"
 #include "securec.h"
 #include "wifi_device_config.h"
+#include "lwip/netifapi.h"
 
 
 // 定义宏，用于自动传递 __FILE__, __func__, __LINE__ 给打印函数
@@ -18,11 +19,13 @@
 #define WIFI_NOT_AVALLIABLE              0
 #define WIFI_AVALIABE                    1
 #define WIFI_SCAN_AP_LIMIT               64
-#define SCAN_TIMEOUT_MS 5000            // 最大扫描等待时间（毫秒）
-#define SCAN_POLL_INTERVAL_MS 10        // 每次轮询扫描状态的时间间隔（毫秒）
+#define SCAN_TIMEOUT_MS                  5000      // 最大扫描等待时间（毫秒）
+#define SCAN_POLL_INTERVAL_MS            10        // 每次轮询扫描状态的时间间隔（毫秒）
+#define WIFI_GET_IP_MAX_COUNT            300
 
 static td_void wifi_scan_state_changed(td_s32 state, td_s32 size);
 static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru *info, td_s32 reason_code);
+static char g_sta_ip[16] = {0};  // 保存 STA 模式的 IP 地址
 
 wifi_event_stru wifi_event_cb = {
     .wifi_event_connection_changed      = wifi_connection_changed,
@@ -85,6 +88,44 @@ int HAL_WiFi_Init(void)
     // SDK在其他地方调用了wifi_init,在此不再调用该函数
     return 0;
 }
+
+/*****************************************************************************
+  STA DHCP状态查询
+*****************************************************************************/
+td_bool example_check_dhcp_status(struct netif *netif_p, td_u32 *wait_count)
+{
+    if ((ip_addr_isany(&(netif_p->ip_addr)) == 0) && (*wait_count <= WIFI_GET_IP_MAX_COUNT)) {
+        /* DHCP成功 */
+        return 0;
+    }
+
+    if (*wait_count > WIFI_GET_IP_MAX_COUNT) {
+        perror("%s::STA DHCP timeout, try again !.\r\n");
+        *wait_count = 0;
+        g_wifi_state = WIFI_STA_SAMPLE_INIT;
+    }
+    return -1;
+}
+
+/*****************************************************************************
+ 存储IP信息
+*****************************************************************************/
+void store_ip(struct netif *netif_p)
+{
+    #define WIFI_STA_IP_MAX_GET_TIMES 5
+    for (uint8_t i = 0; i < WIFI_STA_IP_MAX_GET_TIMES; i++) {
+        (void)osal_msleep(10);  /* 延时 10ms */
+        if (netif_p->ip_addr.u_addr.ip4.addr != 0) {
+            snprintf(g_sta_ip, sizeof(g_sta_ip), "%u.%u.%u.%u", 
+                     (netif_p->ip_addr.u_addr.ip4.addr & 0x000000ff),
+                     (netif_p->ip_addr.u_addr.ip4.addr & 0x0000ff00) >> 8,
+                     (netif_p->ip_addr.u_addr.ip4.addr & 0x00ff0000) >> 16,
+                     (netif_p->ip_addr.u_addr.ip4.addr & 0xff000000) >> 24);
+            break;
+        }
+    }
+}
+
 
 int HAL_WiFi_Deinit(void)
 {
@@ -244,12 +285,96 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
     strncpy((char *)hw_config.pre_shared_key, (const char *)wifi_config->password, sizeof(hw_config.pre_shared_key) - 1);
     memcpy(hw_config.bssid, wifi_config->bssid, WIFI_BSSID_LEN);
     hw_config.security_type = (wifi_security_enum)wifi_config->security_type;  // 转换为硬件驱动的安全类型
-    hw_config.ip_type = 1;
+    hw_config.ip_type = 1; /* 1：IP类型为动态DHCP获取 */
     // 启动 STA 模式并连接
     if (wifi_sta_connect(&hw_config) != 0) {
         perror("Wi-Fi connect failed.\r\n");
         return -1;
     }
 
-    return 0; // 成功连接
+    // 定义连接超时时间（例如 10 秒）
+    const int CONNECT_TIMEOUT_MS = 10000;  // 10 秒超时
+    const int POLL_INTERVAL_MS = 100;      // 每次等待 100 毫秒
+    int elapsed_time = 0;
+
+    // 等待 Wi-Fi 连接状态更新
+    while (g_wifi_state != WIFI_STA_SAMPLE_CONNECT_DONE) {
+        osDelay(POLL_INTERVAL_MS);  // 延迟 100ms
+        elapsed_time += POLL_INTERVAL_MS;
+
+        // 检查是否超时
+        if (elapsed_time >= CONNECT_TIMEOUT_MS) {
+            perror("Wi-Fi connection timed out.\r\n");
+            return -1;
+        }
+    }
+
+    // 获取网卡接口名
+    const char *ifname = "wlan0";  // 假设网卡接口名为wlan0，根据实际调整
+    struct netif *netif_p = netifapi_netif_find(ifname);
+    if (netif_p == NULL) {
+        perror("Network interface not found: %s\n", ifname);
+        return -1;
+    }
+
+    // 启动 DHCP 获取 IP 地址
+    if (netifapi_dhcp_start(netif_p) != 0) {
+        perror("Failed to start DHCP on interface: %s\n", ifname);
+        return -1;
+    }
+
+    // 等待获取 IP 地址
+    td_u32 wait_count = 0;
+    while (1) {
+        osDelay(50);  // 50ms 延迟
+        if (example_check_dhcp_status(netif_p, &wait_count) == 0) {
+            break;
+        }
+        if (wait_count > WIFI_GET_IP_MAX_COUNT) {
+            perror("DHCP timeout on interface: %s\n", ifname);
+            return -1;
+        }
+    }
+
+    // 存储获取到的 IP 地址
+    store_ip(netif_p);
+    return 0;  
+}
+
+int HAL_WiFi_GetIP(char *ip_buffer, int buffer_len)
+{
+    // 检查输入参数是否合法
+    if (ip_buffer == NULL || buffer_len <= 0) {
+        printf("Invalid input: ip_buffer is NULL or buffer_len is invalid.\n");
+        return -1;
+    }
+
+    // 检查全局变量 g_sta_ip 中是否存有 IP 地址
+    if (g_sta_ip[0] == '\0') {
+        printf("No IP address available.\n");
+        return -1;
+    }
+
+    // 检查缓冲区大小是否足够
+    if (buffer_len < 16) {
+        printf("Buffer size too small. Needs at least 16 bytes.\n");
+        return -1;
+    }
+
+    // 将全局变量中的 IP 地址复制到传入的缓冲区中
+    strncpy(ip_buffer, g_sta_ip, buffer_len - 1);
+    ip_buffer[buffer_len - 1] = '\0';  // 确保字符串以 NULL 结尾
+
+    return 0;  // 成功
+}
+
+int HAL_WiFi_Disconnect(void)
+{
+    if(wifi_sta_disconnect() != 0)
+    {
+        perror("wifi disconnect fail.\r\n");
+        return -1;
+    }else{
+        return 0;
+    }
 }

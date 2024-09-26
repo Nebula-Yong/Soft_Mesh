@@ -116,12 +116,6 @@ int HAL_WiFi_Scan(const char *target_ssid, const char *target_password, WiFiSTAC
 int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config);
 
 /**
- * @brief 获取当前Wi-Fi连接状态
- * @return `WIFI_CONNECTED` 表示已连接，`WIFI_DISCONNECTED` 表示未连接
- */
-WiFiConnectionStatus HAL_WiFi_GetConnectionStatus(void);
-
-/**
  * @brief 获取当前STA模式下的IP地址
  * @param ip_buffer 存储IP地址的缓冲区，建议至少分配16字节以存储完整的IPv4地址。
  * @param buffer_len `ip_buffer` 的大小

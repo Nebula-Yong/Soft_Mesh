@@ -11,7 +11,9 @@
 
 #define WIFI_TASK_STACK_SIZE 0x1000
 #define WIFI_TASK_PRIO       (osPriority_t)(13)
-#define WIFI_RECONNECT_DELAY_MS 5000  // 重连等待时间 (5秒)
+#define WIFI_RECONNECT_DELAY_MS 100  // 重连等待时间 (1秒)
+
+char ip[16];
 
 // 任务的入口函数
 void sta_sample_task(void *param)
@@ -64,17 +66,24 @@ void sta_sample_task(void *param)
         printf("Connecting to Wi-Fi network: %s...\n", TEST_TARGET_SSID);
         result = HAL_WiFi_Connect(&wifi_config);
         if (result != 0) {
-            printf("Failed to connect to Wi-Fi network: %s. Retrying in %d ms...\n", TEST_TARGET_SSID, WIFI_RECONNECT_DELAY_MS);
+            printf("Failed to connect to Wi-Fi network: %s. Retrying in %d ms...\n", TEST_TARGET_SSID, WIFI_RECONNECT_DELAY_MS*10);
             osDelay(WIFI_RECONNECT_DELAY_MS);  // 等待一段时间再重试
             continue;  // 继续下一次重试
         }
 
         printf("Successfully connected to Wi-Fi network: %s.\n", TEST_TARGET_SSID);
         
-        // 可以在这里添加进一步的操作，例如获取 IP 地址等
+        HAL_WiFi_GetIP(ip,16);// 可以在这里添加进一步的操作，例如获取 IP 地址等
+        printf("STA IP is %s\r\n", ip);
         break;  // 成功连接后退出循环
     }
-
+    osDelay(WIFI_RECONNECT_DELAY_MS * 5);  // 等待一段时间后断开连接
+    if(HAL_WiFi_Disconnect() != 0){
+        printf("fail to disconnect wifi");
+    }else{
+        printf("disconnect wifi\r\n");
+    }
+    
     // 释放动态分配的内存
     free(scan_results);
 }
