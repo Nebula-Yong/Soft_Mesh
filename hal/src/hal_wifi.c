@@ -462,3 +462,21 @@ int HAL_WiFi_AP_Disable(void) {
     perror("SoftAP mode disabled.\n");
     return 0;
 }
+
+int HAL_WiFi_GetConnectedSTAInfo(wifi_sta_info_stru *result, uint32_t *size) {
+    if (result == NULL || size == NULL || (*size) == 0) {
+        printf("Invalid input parameters.\n");
+        return -1;
+    }
+
+    // 调用底层API获取已连接的STA信息
+    int ret = wifi_softap_get_sta_list(result, size);
+
+    if (ret != 0) {
+        printf("Failed to get connected STA info.\n");
+        return -1;
+    }
+
+    // 成功返回STA列表信息
+    return 0;
+}

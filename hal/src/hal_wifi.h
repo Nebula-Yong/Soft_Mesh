@@ -62,6 +62,14 @@ typedef enum {
     HAL_WIFI_CONN_STATUS_BUTT,      // 枚举越界标记位
 } WiFiConnectionStatus;
 
+/** Wi-Fi已连接STA信息结构体 */
+typedef struct {
+    uint8_t mac_addr[WIFI_BSSID_LEN];     /*!< MAC地址 */
+    int8_t rssi;                        /*!< 接收信号强度指示 (RSSI) */
+    int8_t rsv;                         /*!< 保留字段 */
+    uint32_t best_rate;                 /*!< 最佳发送速率 (kbps) */
+} WiFiSTAInfo;
+
 /**
  * @brief 初始化Wi-Fi硬件及相关资源
  * @return 0 表示成功，非 0 表示失败
@@ -128,6 +136,14 @@ int HAL_WiFi_GetIP(char *ip_buffer, int buffer_len);
  * @return 0 表示成功，非 0 表示失败
  */
 int HAL_WiFi_Disconnect(void);
+
+/**
+ * @brief 获取已连接STA的信息
+ * @param[out] result 用于存储STA信息的数组
+ * @param[in, out] size  输入为数组的最大长度，输出为已连接的STA数量
+ * @return 0表示成功，其他表示失败
+ */
+int HAL_WiFi_GetConnectedSTAInfo(wifi_sta_info_stru *result, uint32_t *size);
 
 #ifdef __cplusplus
 }

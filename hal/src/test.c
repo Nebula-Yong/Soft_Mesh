@@ -9,14 +9,14 @@
 #define TEST_TARGET_PASSWORD "12345678"
 #define MAX_SCAN_RESULTS 64
 
-#define AP_SSID "My_AP"
-#define AP_PASSWORD "ap_password"
+#define AP_SSID "FsrLab_AP"
+#define AP_PASSWORD "12345678"
 #define AP_CHANNEL 6
 
 #define WIFI_TASK_STACK_SIZE 0x1000
 #define WIFI_TASK_PRIO       (osPriority_t)(13)
-#define WIFI_RECONNECT_DELAY_MS 100  // 重连等待时间 (1秒)
-#define WIFI_SHUTDOWN_DELAY_MS 1000 // 延迟10秒后关闭STA和AP
+#define WIFI_RECONNECT_DELAY_MS 100  // 重连等待时间
+#define WIFI_READ_STA_INTERVAL_MS 1000 // 读取连接STA信息的间隔时间
 
 char ip[16];
 
@@ -72,13 +72,12 @@ void sta_sample_task(void *param)
         printf("Connecting to Wi-Fi network: %s...\n", TEST_TARGET_SSID);
         result = HAL_WiFi_Connect(&wifi_config);
         if (result != 0) {
-            printf("Failed to connect to Wi-Fi network: %s. Retrying in %d ms...\n", TEST_TARGET_SSID, WIFI_RECONNECT_DELAY_MS*10);
+            printf("Failed to connect to Wi-Fi network: %s. Retrying in %d ms...\n", TEST_TARGET_SSID, WIFI_RECONNECT_DELAY_MS * 10);
             osDelay(WIFI_RECONNECT_DELAY_MS);  // 等待一段时间再重试
             continue;  // 继续下一次重试
         }
 
         printf("Successfully connected to Wi-Fi network: %s.\n", TEST_TARGET_SSID);
-        
         HAL_WiFi_GetIP(ip, 16);  // 获取STA模式的IP地址
         printf("STA IP is %s\n", ip);
         break;  // 成功连接后退出循环
@@ -98,20 +97,25 @@ void sta_sample_task(void *param)
         printf("AP mode started successfully with SSID: %s\n", AP_SSID);
     }
 
-    // 保持STA和AP模式一段时间后再关闭
-    osDelay(WIFI_SHUTDOWN_DELAY_MS);  // 等待指定时间
+    // 循环读取连接到AP的STA设备信息
+    wifi_sta_info_stru sta_info[8];
+    uint32_t sta_num = 8;
 
-    // 关闭STA和AP模式
-    if (HAL_WiFi_Disconnect() != 0) {
-        printf("Failed to disconnect STA.\n");
-    } else {
-        printf("STA disconnected successfully.\n");
-    }
+    while (1) {
+        // 获取连接的STA信息
+        if (HAL_WiFi_GetConnectedSTAInfo(sta_info, &sta_num) == 0) {
+            printf("Connected STA devices: %d\n", sta_num);
+            for (uint32_t i = 0; i < sta_num; i++) {
+                printf("STA MAC: %02x:%02x:%02x:%02x:%02x:%02x, RSSI: %d, Rate: %u kbps\n",
+                       sta_info[i].mac_addr[0], sta_info[i].mac_addr[1], sta_info[i].mac_addr[2],
+                       sta_info[i].mac_addr[3], sta_info[i].mac_addr[4], sta_info[i].mac_addr[5],
+                       sta_info[i].rssi, sta_info[i].best_rate);
+            }
+        } else {
+            printf("Failed to get connected STA info.\n");
+        }
 
-    if (HAL_WiFi_AP_Disable() != 0) {
-        printf("Failed to disable AP mode.\n");
-    } else {
-        printf("AP mode disabled successfully.\n");
+        osDelay(WIFI_READ_STA_INTERVAL_MS / 10);  // 每隔WIFI_READ_STA_INTERVAL_MS读取一次STA信息
     }
 
     // 释放动态分配的内存
