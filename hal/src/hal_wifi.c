@@ -12,6 +12,8 @@
 #include "securec.h"
 #include "wifi_device_config.h"
 #include "lwip/netifapi.h"
+#include "wifi_hotspot.h"
+#include "wifi_hotspot_config.h"
 
 
 // 定义宏，用于自动传递 __FILE__, __func__, __LINE__ 给打印函数
@@ -326,7 +328,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
     // 等待获取 IP 地址
     td_u32 wait_count = 0;
     while (1) {
-        osDelay(50);  // 50ms 延迟
+        osDelay(1);  // 10ms 延迟
         if (example_check_dhcp_status(netif_p, &wait_count) == 0) {
             break;
         }
@@ -377,4 +379,86 @@ int HAL_WiFi_Disconnect(void)
     }else{
         return 0;
     }
+}
+
+int HAL_WiFi_AP_Enable(WiFiAPConfig *config) {
+    if (config == NULL) {
+        perror("Invalid input: config is NULL.\n");
+        return -1;
+    }
+
+    // 创建 SoftAP 配置
+    softap_config_stru hapd_conf = {0};
+    softap_config_advance_stru advanced_conf = {0};
+    td_char ifname[WIFI_IFNAME_MAX_SIZE + 1] = "ap0"; // SoftAp接口名
+    struct netif *netif_p = NULL;
+    ip4_addr_t st_gw, st_ipaddr, st_netmask;
+
+    // 设置SoftAp的IP地址，子网掩码和网关
+    IP4_ADDR(&st_ipaddr, 192, 168, 43, 1);  // IP地址：192.168.43.1
+    IP4_ADDR(&st_netmask, 255, 255, 255, 0); // 子网掩码：255.255.255.0
+    IP4_ADDR(&st_gw, 192, 168, 43, 2);      // 网关：192.168.43.2
+
+    // 基本SoftAp配置
+    strncpy((char *)hapd_conf.ssid, (const char *)config->ssid, sizeof(hapd_conf.ssid) - 1);
+    strncpy((char *)hapd_conf.pre_shared_key, (const char *)config->password, sizeof(hapd_conf.pre_shared_key) - 1);
+    hapd_conf.security_type = (td_u8)config->security;
+    hapd_conf.channel_num = config->channel;
+    hapd_conf.wifi_psk_type = 0;  // 假设PSK类型为0
+
+    // 高级SoftAp配置
+    advanced_conf.beacon_interval = 100;     // Beacon周期设置为100ms
+    advanced_conf.dtim_period = 2;           // DTIM周期设置为2
+    advanced_conf.gi = 0;                    // Short GI默认关闭
+    advanced_conf.group_rekey = 86400;       // 组播秘钥更新时间设置为1天
+    advanced_conf.protocol_mode = 4;         // 802.11b/g/n/ax协议模式
+    advanced_conf.hidden_ssid_flag = 1;      // SSID不隐藏
+
+    // 设置SoftAp的高级配置
+    if (wifi_set_softap_config_advance(&advanced_conf) != 0) {
+        perror("Failed to set advanced SoftAP configuration.\n");
+        return -1;
+    }
+
+    // 启动SoftAp接口
+    if (wifi_softap_enable(&hapd_conf) != 0) {
+        perror("Failed to enable SoftAP.\n");
+        return -1;
+    }
+
+    // 获取网络接口
+    netif_p = netif_find(ifname);
+    if (netif_p == NULL) {
+        perror("Failed to find network interface: %s.\n", ifname);
+        (void)wifi_softap_disable();
+        return -1;
+    }
+
+    // 设置IP地址、子网掩码和网关
+    if (netifapi_netif_set_addr(netif_p, &st_ipaddr, &st_netmask, &st_gw) != 0) {
+        perror("Failed to set network interface address.\n");
+        (void)wifi_softap_disable();
+        return -1;
+    }
+
+    // 启动DHCP服务器
+    if (netifapi_dhcps_start(netif_p, NULL, 0) != 0) {
+        perror("Failed to start DHCP server.\n");
+        (void)wifi_softap_disable();
+        return -1;
+    }
+
+    printf("SoftAP started successfully with SSID: %s\n", config->ssid);
+    return 0;
+}
+
+int HAL_WiFi_AP_Disable(void) {
+    // 停止 SoftAp 模式
+    if (wifi_softap_disable() != 0) {
+        perror("Failed to disable SoftAP mode.\n");
+        return -1;
+    }
+
+    perror("SoftAP mode disabled.\n");
+    return 0;
 }
