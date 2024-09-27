@@ -14,6 +14,7 @@
 #include "lwip/netifapi.h"
 #include "wifi_hotspot.h"
 #include "wifi_hotspot_config.h"
+#include "lwip/etharp.h"
 
 
 // 定义宏，用于自动传递 __FILE__, __func__, __LINE__ 给打印函数
@@ -463,14 +464,20 @@ int HAL_WiFi_AP_Disable(void) {
     return 0;
 }
 
-int HAL_WiFi_GetConnectedSTAInfo(wifi_sta_info_stru *result, uint32_t *size) {
+int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
     if (result == NULL || size == NULL || (*size) == 0) {
         printf("Invalid input parameters.\n");
         return -1;
     }
-
+    wifi_sta_info_stru* sta_info = (wifi_sta_info_stru*)malloc(sizeof(wifi_sta_info_stru) * (*size));
     // 调用底层API获取已连接的STA信息
-    int ret = wifi_softap_get_sta_list(result, size);
+    int ret = wifi_softap_get_sta_list(sta_info, size);
+    for(uint32_t i =0; i < (*size); i++)
+    {
+        result[i].best_rate = sta_info[i].best_rate;
+        memcpy(result[i].mac_addr, sta_info[i].mac_addr, WIFI_BSSID_LEN);
+        result[i].rssi = sta_info[i].rssi;
+    }
 
     if (ret != 0) {
         printf("Failed to get connected STA info.\n");
@@ -479,4 +486,44 @@ int HAL_WiFi_GetConnectedSTAInfo(wifi_sta_info_stru *result, uint32_t *size) {
 
     // 成功返回STA列表信息
     return 0;
+}
+
+
+// 查询已连接 STA 的 IP 地址
+int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, int *sta_count) {
+    if (sta_info_array == NULL || sta_count == NULL || *sta_count <= 0) {
+        printf("Invalid input parameters.\n");
+        return -1;
+    }
+
+    int max_sta_info = *sta_count;  // 获取传入的数组最大长度
+    int count = 0;
+
+    // 遍历 ARP 表
+    for (int i = 0; i < ARP_TABLE_SIZE && count < max_sta_info; i++) {
+        struct etharp_entry *entry = &arp_table[i];
+        if (entry->state > ETHARP_STATE_EMPTY) {
+            // 将 MAC 地址和 IP 地址写入结构体数组
+            memcpy(sta_info_array[count].mac_addr, entry->ethaddr.addr, WIFI_BSSID_LEN);
+            strncpy(sta_info_array[count].ip_addr, ip4addr_ntoa(&entry->ipaddr), sizeof(sta_info_array[count].ip_addr) - 1);
+            sta_info_array[count].ip_addr[15] = '\0';  // 确保字符串结尾为 '\0'
+
+            // 模拟填充 RSSI 和最佳速率，实际实现中应从相关接口获取
+            sta_info_array[count].rssi = -50 + (i % 10);  // 模拟的 RSSI 值
+            sta_info_array[count].best_rate = 54000;  // 模拟的最佳速率 (54 Mbps)
+
+            // 打印信息
+            printf("MAC: %02X:%02X:%02X:%02X:%02X:%02X - IP: %s - RSSI: %d - Best rate: %u kbps\n",
+                sta_info_array[count].mac_addr[0], sta_info_array[count].mac_addr[1],
+                sta_info_array[count].mac_addr[2], sta_info_array[count].mac_addr[3],
+                sta_info_array[count].mac_addr[4], sta_info_array[count].mac_addr[5],
+                sta_info_array[count].ip_addr, sta_info_array[count].rssi, sta_info_array[count].best_rate);
+
+            count++;
+        }
+    }
+
+    *sta_count = count;  // 返回实际连接的 STA 数量
+
+    return 0;  // 成功
 }

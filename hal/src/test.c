@@ -98,10 +98,11 @@ void sta_sample_task(void *param)
     }
 
     // 循环读取连接到AP的STA设备信息
-    wifi_sta_info_stru sta_info[8];
+    WiFiSTAInfo sta_info[8];
     uint32_t sta_num = 8;
 
     while (1) {
+        sta_num = 8;
         // 获取连接的STA信息
         if (HAL_WiFi_GetConnectedSTAInfo(sta_info, &sta_num) == 0) {
             printf("Connected STA devices: %d\n", sta_num);

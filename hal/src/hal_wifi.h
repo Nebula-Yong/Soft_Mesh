@@ -66,7 +66,7 @@ typedef enum {
 typedef struct {
     uint8_t mac_addr[WIFI_BSSID_LEN];     /*!< MAC地址 */
     int8_t rssi;                        /*!< 接收信号强度指示 (RSSI) */
-    int8_t rsv;                         /*!< 保留字段 */
+    char ip_addr[16];                  /*!< IP地址（以字符串形式存储） */
     uint32_t best_rate;                 /*!< 最佳发送速率 (kbps) */
 } WiFiSTAInfo;
 
@@ -143,7 +143,17 @@ int HAL_WiFi_Disconnect(void);
  * @param[in, out] size  输入为数组的最大长度，输出为已连接的STA数量
  * @return 0表示成功，其他表示失败
  */
-int HAL_WiFi_GetConnectedSTAInfo(wifi_sta_info_stru *result, uint32_t *size);
+int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size);
+
+/**
+ * @brief 查询已连接 STA 的 MAC 和 IP 地址，并将其写入结构体数组。
+ * 
+ * @param[out] sta_info_array 用于存储已连接 STA 信息的结构体数组
+ * @param[in,out] sta_count 传入结构体数组的长度，返回时为已连接的 STA 数量
+ * 
+ * @return 0 表示成功，其他值表示失败
+ */
+int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, int *sta_count);
 
 #ifdef __cplusplus
 }
