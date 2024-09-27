@@ -62,6 +62,14 @@ typedef enum {
     HAL_WIFI_CONN_STATUS_BUTT,      // 枚举越界标记位
 } WiFiConnectionStatus;
 
+/** Wi-Fi已连接STA信息结构体 */
+typedef struct {
+    uint8_t mac_addr[WIFI_BSSID_LEN];       /*!< MAC地址 */
+    int8_t rssi;                            /*!< 接收信号强度指示 (RSSI) */
+    int8_t rsv;                            /*!< 保留字段 */
+    uint32_t best_rate;                     /*!< 最佳发送速率 (kbps) */
+} WiFiSTAInfo;
+
 /**
  * @brief 初始化Wi-Fi硬件及相关资源
  * @return 0 表示成功，非 0 表示失败
@@ -116,12 +124,6 @@ int HAL_WiFi_Scan(const char *target_ssid, const char *target_password, WiFiSTAC
 int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config);
 
 /**
- * @brief 获取当前Wi-Fi连接状态
- * @return `WIFI_CONNECTED` 表示已连接，`WIFI_DISCONNECTED` 表示未连接
- */
-WiFiConnectionStatus HAL_WiFi_GetConnectionStatus(void);
-
-/**
  * @brief 获取当前STA模式下的IP地址
  * @param ip_buffer 存储IP地址的缓冲区，建议至少分配16字节以存储完整的IPv4地址。
  * @param buffer_len `ip_buffer` 的大小
@@ -134,6 +136,23 @@ int HAL_WiFi_GetIP(char *ip_buffer, int buffer_len);
  * @return 0 表示成功，非 0 表示失败
  */
 int HAL_WiFi_Disconnect(void);
+
+/**
+ * @brief 获取已连接STA的信息
+ * @param[out] result 用于存储STA信息的数组
+ * @param[in, out] size  输入为数组的最大长度，输出为已连接的STA数量
+ * @return 0表示成功，其他表示失败
+ */
+int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size);
+
+/**
+ * @brief 查询已连接 STA 的 MAC 和 IP 地址，并将其写入结构体数组。
+ * 
+ * @param[out] sta_info_array 用于存储已连接 STA 信息的结构体数组
+ * @param[in,out] sta_count 传入结构体数组的长度，返回时为已连接的 STA 数量
+ * 
+ * @return 0 表示成功，其他值表示失败
+ */
 
 #ifdef __cplusplus
 }
