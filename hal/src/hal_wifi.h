@@ -64,10 +64,10 @@ typedef enum {
 
 /** Wi-Fi已连接STA信息结构体 */
 typedef struct {
-    uint8_t mac_addr[WIFI_BSSID_LEN];     /*!< MAC地址 */
-    int8_t rssi;                        /*!< 接收信号强度指示 (RSSI) */
-    char ip_addr[16];                  /*!< IP地址（以字符串形式存储） */
-    uint32_t best_rate;                 /*!< 最佳发送速率 (kbps) */
+    uint8_t mac_addr[WIFI_BSSID_LEN];       /*!< MAC地址 */
+    int8_t rssi;                            /*!< 接收信号强度指示 (RSSI) */
+    int8_t rsv;                            /*!< 保留字段 */
+    uint32_t best_rate;                     /*!< 最佳发送速率 (kbps) */
 } WiFiSTAInfo;
 
 /**
@@ -153,7 +153,6 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size);
  * 
  * @return 0 表示成功，其他值表示失败
  */
-int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, uint32_t *sta_count);
 
 #ifdef __cplusplus
 }

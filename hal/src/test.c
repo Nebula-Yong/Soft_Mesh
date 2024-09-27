@@ -115,13 +115,6 @@ void sta_sample_task(void *param)
         } else {
             printf("Failed to get connected STA info.\n");
         }
-        //
-        if (HAL_WiFi_GetConnectedSTAIP(sta_info, &sta_num) == 0) {
-            printf("Connected STA devices: %d\n", sta_num);
-        } else {
-            printf("Failed to get connected STA info.\n");
-        }
-
         osDelay(WIFI_READ_STA_INTERVAL_MS / 10);  // 每隔WIFI_READ_STA_INTERVAL_MS读取一次STA信息
     }
 
