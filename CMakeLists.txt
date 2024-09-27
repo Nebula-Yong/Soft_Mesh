@@ -1,3 +1,4 @@
+add_subdirectory_if_exist(hal)
 
-set(SOURCES "${SOURCES}" "${CMAKE_CURRENT_SOURCE_DIR}/hal/src/hal_wifi.c" "${CMAKE_CURRENT_SOURCE_DIR}/hal/src/test.c"  PARENT_SCOPE)
-
+set(SOURCES "${SOURCES}" PARENT_SCOPE)
+set(PUBLIC_HEADER "${PUBLIC_HEADER}" PARENT_SCOPE)
