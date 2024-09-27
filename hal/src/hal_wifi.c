@@ -398,7 +398,7 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config) {
     // 设置SoftAp的IP地址，子网掩码和网关
     IP4_ADDR(&st_ipaddr, 192, 168, 43, 1);  // IP地址：192.168.43.1
     IP4_ADDR(&st_netmask, 255, 255, 255, 0); // 子网掩码：255.255.255.0
-    IP4_ADDR(&st_gw, 192, 168, 43, 2);      // 网关：192.168.43.2
+    IP4_ADDR(&st_gw, 192, 168, 43, 1);      // 网关：192.168.43.2
 
     // 基本SoftAp配置
     strncpy((char *)hapd_conf.ssid, (const char *)config->ssid, sizeof(hapd_conf.ssid) - 1);
@@ -470,6 +470,11 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
         return -1;
     }
     wifi_sta_info_stru* sta_info = (wifi_sta_info_stru*)malloc(sizeof(wifi_sta_info_stru) * (*size));
+    if (sta_info == NULL) {
+        printf("Memory allocation failed.\n");
+        return -1;
+    }
+
     // 调用底层API获取已连接的STA信息
     int ret = wifi_softap_get_sta_list(sta_info, size);
     for(uint32_t i =0; i < (*size); i++)
@@ -490,7 +495,7 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
 
 
 // 查询已连接 STA 的 IP 地址
-int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, int *sta_count) {
+int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, uint32_t *sta_count) {
     if (sta_info_array == NULL || sta_count == NULL || *sta_count <= 0) {
         printf("Invalid input parameters.\n");
         return -1;
@@ -498,7 +503,6 @@ int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, int *sta_count) {
 
     int max_sta_info = *sta_count;  // 获取传入的数组最大长度
     int count = 0;
-
     // 遍历 ARP 表
     for (int i = 0; i < ARP_TABLE_SIZE && count < max_sta_info; i++) {
         struct etharp_entry *entry = &arp_table[i];

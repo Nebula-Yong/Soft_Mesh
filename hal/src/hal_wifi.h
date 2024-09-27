@@ -153,7 +153,7 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size);
  * 
  * @return 0 表示成功，其他值表示失败
  */
-int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, int *sta_count);
+int HAL_WiFi_GetConnectedSTAIP(WiFiSTAInfo *sta_info_array, uint32_t *sta_count);
 
 #ifdef __cplusplus
 }
