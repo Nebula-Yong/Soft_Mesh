@@ -1,5 +1,4 @@
 set(SOURCES "${SOURCES}"
     "${CMAKE_CURRENT_SOURCE_DIR}/hal_wireless.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/hal_wifi.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test.c"
     PARENT_SCOPE)
