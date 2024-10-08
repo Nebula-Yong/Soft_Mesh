@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include "hal_wifi.h"
 
 /** 支持的无线通信类型 */
 typedef enum {
@@ -75,7 +76,7 @@ int HAL_Wireless_Stop(WirelessType type);
  * @param max_results `results` 数组的最大长度，表示最多存储多少个扫描结果。
  * @return 扫描到的无线网络数量，或 < 0 表示失败
  */
-int HAL_Wireless_Scan(WirelessType type, WirelessScanResult *results, int max_results);
+int HAL_Wireless_Scan(WirelessType type, const char *target_ssid, const char *target_password, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results);
 
 /**
  * @brief 连接到指定的无线设备（如Wi-Fi AP或蓝牙设备）
@@ -98,6 +99,14 @@ int HAL_Wireless_Disconnect(WirelessType type);
  * @return 当前连接状态，如WIFI_CONNECTED, WIFI_DISCONNECTED等
  */
 WirelessConnectionStatus HAL_Wireless_GetConnectionStatus(WirelessType type);
+
+/**
+ * @brief 获取当前无线通信模块的IP地址（仅限Wi-Fi）
+ * @param ip_buffer 存储IP地址的缓冲区，建议至少分配16字节以存储完整的IPv4地址。
+ * @param buffer_len `ip_buffer` 的大小
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_GetIP(WirelessType type, char *ip_buffer, int buffer_len);
 
 /**
  * @brief 获取已连接的无线设备信息，如Wi-Fi的STA或蓝牙的连接设备

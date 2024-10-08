@@ -156,3 +156,44 @@ int HAL_Wireless_Disconnect(WirelessType type)
     }
     return ret;
 }
+
+/**
+ * @brief 获取当前连接状态
+ * @param type 指定无线通信类型。
+ * @return 当前连接状态，如WIFI_CONNECTED, WIFI_DISCONNECTED等
+ */
+int HAL_Wireless_GetIP(WirelessType type, char *ip_buffer, int buffer_len){
+    if(type != WIRELESS_TYPE_WIFI){
+        printf("Only Wi-Fi supports getting IP address!\n");
+        return -1;
+    }
+    HAL_WiFi_GetIP(ip_buffer, buffer_len);
+    return 0;
+}
+
+/**
+ * @brief 扫描指定类型的无线网络
+ * @param type 指定无线通信类型（如Wi-Fi、蓝牙）
+ * @param results 用于存储扫描结果的数组，调用方需预先分配足够的空间。
+ * @param max_results `results` 数组的最大长度，表示最多存储多少个扫描结果。
+ * @return 扫描到的无线网络数量，或 < 0 表示失败
+ */
+int HAL_Wireless_Scan(WirelessType type, const char *target_ssid, const char *target_password, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results)
+{
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_Scan(target_ssid, target_password, wifi_config, results, max_results);  // 扫描Wi-Fi网络
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_Scan(results, max_results);  // 扫描蓝牙设备
+            break;
+        case WIRELESS_TYPE_STARFLASH:
+            // ret = HAL_StarFlash_Scan(results, max_results);  // 扫描星闪设备
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}
