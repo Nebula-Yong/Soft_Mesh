@@ -161,9 +161,9 @@ int HAL_WiFi_STA_Disable(void)
     }
 }
 
-int HAL_WiFi_Scan(const char *target_ssid, const char *target_password, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results)
+int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results)
 {
-    if (target_ssid == NULL || target_password == NULL || wifi_config == NULL || results == NULL || max_results <= 0) {
+    if (wifi_config == NULL || results == NULL || max_results <= 0) {
         perror("Invalid input.\r\n");
         return -1;
     }
@@ -255,9 +255,7 @@ int HAL_WiFi_Scan(const char *target_ssid, const char *target_password, WiFiSTAC
         results[i].channel = scan_results[i].channel_num;
 
         // 匹配目标 SSID
-        if (strcmp(target_ssid, scan_results[i].ssid) == 0) {
-            strncpy(wifi_config->ssid, scan_results[i].ssid, sizeof(wifi_config->ssid) - 1);
-            strncpy(wifi_config->password, target_password, sizeof(wifi_config->password) - 1);
+        if (strcmp(wifi_config->ssid, scan_results[i].ssid) == 0) {
             memcpy(wifi_config->bssid, scan_results[i].bssid, WIFI_BSSID_LEN);
             wifi_config->security_type = results[i].security;
             found_ap = TD_TRUE;
@@ -267,7 +265,7 @@ int HAL_WiFi_Scan(const char *target_ssid, const char *target_password, WiFiSTAC
     osal_kfree(scan_results);
 
     if (!found_ap) {
-        perror("Failed to find the target SSID: %s\r\n", target_ssid);
+        perror("Failed to find the target SSID: %s\r\n", wifi_config->ssid);
         return -1;
     }
 

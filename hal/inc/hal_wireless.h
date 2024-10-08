@@ -76,7 +76,7 @@ int HAL_Wireless_Stop(WirelessType type);
  * @param max_results `results` 数组的最大长度，表示最多存储多少个扫描结果。
  * @return 扫描到的无线网络数量，或 < 0 表示失败
  */
-int HAL_Wireless_Scan(WirelessType type, const char *target_ssid, const char *target_password, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results);
+int HAL_Wireless_Scan(WirelessType type, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results);
 
 /**
  * @brief 连接到指定的无线设备（如Wi-Fi AP或蓝牙设备）

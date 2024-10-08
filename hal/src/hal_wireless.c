@@ -178,12 +178,12 @@ int HAL_Wireless_GetIP(WirelessType type, char *ip_buffer, int buffer_len){
  * @param max_results `results` 数组的最大长度，表示最多存储多少个扫描结果。
  * @return 扫描到的无线网络数量，或 < 0 表示失败
  */
-int HAL_Wireless_Scan(WirelessType type, const char *target_ssid, const char *target_password, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results)
+int HAL_Wireless_Scan(WirelessType type, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results)
 {
     int ret = -1;
     switch (type) {
         case WIRELESS_TYPE_WIFI:
-            ret = HAL_WiFi_Scan(target_ssid, target_password, wifi_config, results, max_results);  // 扫描Wi-Fi网络
+            ret = HAL_WiFi_Scan(wifi_config, results, max_results);  // 扫描Wi-Fi网络
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_Scan(results, max_results);  // 扫描蓝牙设备

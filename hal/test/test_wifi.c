@@ -28,7 +28,8 @@ void sta_sample_task(void *param)
     WiFiSTAConfig wifi_config;
     WiFiScanResult *scan_results = NULL;
     WiFiAPConfig ap_config;
-
+    strcpy(wifi_config.ssid, TEST_TARGET_SSID);
+    strcpy(wifi_config.password, TEST_TARGET_PASSWORD);
     // 初始化 Wi-Fi
     result = HAL_WiFi_Init();
     if (result != 0) {
@@ -55,7 +56,7 @@ void sta_sample_task(void *param)
     while (1) {
         // 扫描 Wi-Fi 网络
         printf("Scanning for Wi-Fi networks...\n");
-        result = HAL_WiFi_Scan(TEST_TARGET_SSID, TEST_TARGET_PASSWORD, &wifi_config, scan_results, MAX_SCAN_RESULTS);
+        result = HAL_WiFi_Scan(&wifi_config, scan_results, MAX_SCAN_RESULTS);
         if (result < 0) {
             printf("Wi-Fi scan failed or target SSID not found.\n");
             osDelay(WIFI_RECONNECT_DELAY_MS);  // 等待一段时间再重试
