@@ -109,11 +109,12 @@ int HAL_WiFi_AP_Disable(void);
 
 /**
  * @brief 扫描附近的Wi-Fi网络
+ * @param wifi_config 用于匹配要连接的Wi-Fi网络的配置
  * @param results 用于存储扫描结果的数组，调用方需预先分配足够的空间。
  * @param max_results `results` 数组的最大长度，表示最多存储多少个扫描结果。
  * @return 扫描到的Wi-Fi网络数量，或 < 0 表示失败
  */
-int HAL_WiFi_Scan(const char *target_ssid, const char *target_password, WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results);
+int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results);
 
 /**
  * @brief 连接到指定的Wi-Fi AP
