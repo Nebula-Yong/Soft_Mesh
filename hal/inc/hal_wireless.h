@@ -15,6 +15,8 @@ typedef enum {
     WIRELESS_TYPE_MAX                // 最大类型，标识边界
 } WirelessType;
 
+#define DEFAULT_WIRELESS_TYPE WIRELESS_TYPE_WIFI
+
 /** 通用无线接入点扫描结果结构体 */
 typedef struct {
     char ssid[33];                // SSID (最多32字节 + 1 结束符)
