@@ -156,6 +156,7 @@ NetworkState state_scanning(void) {
     WirelessScanResult *best_result = NULL;            // 保存最佳网络
     int best_rssi = -9999;                             // 初始化为最小可能的 RSSI
     int best_tree_level = 62;                          // 初始化为最大的树层级（a-z，最大61）
+    int best_mac[3] = {0};                             // 保存最大的 MAC 地址
 
     // 遍历所有扫描到的网络
     for (int i = 0; i < scanned_count; i++) {
@@ -177,6 +178,13 @@ NetworkState state_scanning(void) {
             // 提取树层级，假设树层级字符是 SSID 的最后一位
             char tree_level_char = scan_results[i].ssid[ssid_len - 1];
 
+            // 从ssid提取根节点的mac地址
+            uint8_t current_mac[3];
+            current_mac[0] = scan_results[i].ssid[mesh_prefix_len];
+            current_mac[1] = scan_results[i].ssid[mesh_prefix_len + 1];
+            current_mac[2] = scan_results[i].ssid[mesh_prefix_len + 2];
+            LOG("  Root node MAC (last 3 bytes) from SSID: %02X:%02X:%02X\n", current_mac[0], current_mac[1], current_mac[2]);
+
             // 判断是否为有效的树层级字符
             if (is_valid_tree_level_char(tree_level_char)) {
                 int tree_level = tree_level_to_int(tree_level_char);
@@ -190,12 +198,14 @@ NetworkState state_scanning(void) {
                     mesh_nodes[mesh_nodes_count].tree_level = tree_level;
                     mesh_nodes_count++;
                 }
-                // 先比较 RSSI，如果 RSSI 相同，则比较树层级
-                if (scan_results[i].rssi > best_rssi || 
-                   (scan_results[i].rssi == best_rssi && tree_level < best_tree_level)) {
+                // 先比较mac地址，再比较rssi，最后比较树层级
+                if(memcmp(current_mac, best_mac, sizeof(current_mac)) > 0 || 
+                    (memcmp(current_mac, best_mac, sizeof(current_mac)) == 0 && scan_results[i].rssi > best_rssi) ||
+                    (memcmp(current_mac, best_mac, sizeof(current_mac)) == 0 && scan_results[i].rssi == best_rssi && tree_level < best_tree_level)) {
                     best_result = &scan_results[i];
                     best_rssi = scan_results[i].rssi;
                     best_tree_level = tree_level;
+                    memcpy(best_mac, current_mac, 3);
                 }
             }
         }
@@ -223,8 +233,14 @@ NetworkState state_scanning(void) {
 // 加入已有网络状态处理函数
 NetworkState state_join_existing_network(void) {
     LOG("Joining existing Mesh network...\n");
-    // 假设加入网络成功，进入已连接状态
-    return STATE_CONNECTED;
+    // 连接到扫描到的最佳网络
+    if (HAL_Wireless_Connect(DEFAULT_WIRELESS_TYPE, &sta_config) == 0) {
+        LOG("Successfully connected to Mesh network.\n");
+        return STATE_CONNECTED;
+    } else {
+        LOG("Failed to connect to Mesh network.\n");
+        return STATE_STARTUP;
+    }
 }
 
 // 检查根节点个数状态处理函数
@@ -243,7 +259,7 @@ NetworkState state_join_network(void) {
 
 // 成功连接状态处理函数
 NetworkState state_connected(void) {
-    LOG("Successfully connected to Mesh network.\n");
+    LOG("Scaning other mesh network.\n");
     // 成功连接后可以继续扫描或处理其他逻辑
     // 假设此时终止状态机
     return STATE_TERMINATE;
