@@ -19,8 +19,22 @@ typedef enum {
     STATE_TERMINATE                  // 结束状态（完成所有操作）
 } NetworkState;
 
+// 定义 Mesh 网络配置信息的结构体
+typedef struct {
+    char mesh_ssid[29];           // Mesh 自定义 SSID，28 字节 + 1 结束符
+    char password[65];            // Mesh 密码，最长 64 字节 + 1 结束符
+} MeshNetworkConfig;
+
+typedef struct {
+    char ssid[33];          // 节点的 SSID
+    uint8_t bssid[6];       // 节点的 BSSID (MAC 地址)
+    int16_t rssi;           // 节点的信号强度 (RSSI)
+    uint8_t channel;        // 节点所在的信道
+    int tree_level;         // 节点的树层级（0 表示根节点）
+} MeshNode;
+
 // 定义状态机初始化函数
-void network_fsm_init(void);
+int network_fsm_init(const MeshNetworkConfig *config);
 
 // 状态处理主循环函数，开始状态机流程
 void network_fsm_run(void);

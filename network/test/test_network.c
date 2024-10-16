@@ -10,8 +10,15 @@ void network_task(void *argument) {
     (void)argument;  // 忽略未使用的参数
     printf("start network_task!\n");
     osDelay(100);  // 延迟 1 秒，模拟任务运行（单位：毫秒）
-    network_fsm_init();
-    network_fsm_run();
+    MeshNetworkConfig mesh_config = {
+        .mesh_ssid = "FsrMesh",
+        .password = "12345678"
+    };
+    if(network_fsm_init(&mesh_config) == 0) {
+        network_fsm_run();
+    }else {
+        printf("network_fsm init Failed.\n");
+    }
 }
 
 /* 创建任务 */
