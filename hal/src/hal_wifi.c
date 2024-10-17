@@ -26,9 +26,9 @@
 #define SCAN_POLL_INTERVAL_MS            10        // 每次轮询扫描状态的时间间隔（毫秒）
 #define WIFI_GET_IP_MAX_COUNT            300
 
-#define WIFI_CONNECT_BIT    (1 << 0)
-#define WIFI_DISCONNECT_BIT (1 << 1)
-osEventFlagsId_t wifi_event_flags;
+extern osEventFlagsId_t wireless_event_flags;
+#define WIRELESS_CONNECT_BIT    (1 << 0)
+#define WIRELESS_DISCONNECT_BIT (1 << 1)
 
 static td_void wifi_scan_state_changed(td_s32 state, td_s32 size);
 static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru *info, td_s32 reason_code);
@@ -46,9 +46,9 @@ enum {
     WIFI_STA_SAMPLE_CONNECT_DONE    /* 5:关联成功 */
 } wifi_state_enum;
 
-void CreateWifiEventFlags(void) {
-    wifi_event_flags = osEventFlagsNew(NULL);  // 使用默认属性创建事件标志
-    if (wifi_event_flags == NULL) {
+void CreateWirelessEventFlags(void) {
+    wireless_event_flags = osEventFlagsNew(NULL);  // 使用默认属性创建事件标志
+    if (wireless_event_flags == NULL) {
         perror("Failed to create Wi-Fi event flags.\r\n");
     }
 }
@@ -77,16 +77,16 @@ static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru
     if (state == WIFI_NOT_AVALLIABLE) {
         perror("Connect fail!. try agin !\r\n");
         g_wifi_state = WIFI_STA_SAMPLE_INIT;
-        osEventFlagsSet(wifi_event_flags, WIFI_DISCONNECT_BIT);
+        osEventFlagsSet(wireless_event_flags, WIRELESS_DISCONNECT_BIT);
     } else {
         g_wifi_state = WIFI_STA_SAMPLE_CONNECT_DONE;
-        osEventFlagsSet(wifi_event_flags, WIFI_CONNECT_BIT);
+        osEventFlagsSet(wireless_event_flags, WIRELESS_CONNECT_BIT);
     }
 }
 
 int HAL_WiFi_Init(void)
 {
-    CreateWifiEventFlags();
+    CreateWirelessEventFlags();
 
     /* 注册事件回调 */
     if (wifi_register_event_cb(&wifi_event_cb) != 0) {

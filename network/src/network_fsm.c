@@ -7,9 +7,9 @@
 #include <ctype.h>
 #include "cmsis_os2.h"
 
-extern osEventFlagsId_t wifi_event_flags;  // wifi连接事件标志对象
-#define WIFI_CONNECT_BIT    (1 << 0)
-#define WIFI_DISCONNECT_BIT (1 << 1)
+extern osEventFlagsId_t wireless_event_flags;  // wifi连接事件标志对象
+#define WIRELESS_CONNECT_BIT    (1 << 0)
+#define WIRELESS_DISCONNECT_BIT (1 << 1)
 
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
@@ -270,12 +270,12 @@ NetworkState state_join_network(void) {
 
 // 成功连接状态处理函数
 NetworkState state_connected(void) {
-    uint32_t flags = osEventFlagsWait(wifi_event_flags, WIFI_CONNECT_BIT | WIFI_DISCONNECT_BIT, osFlagsWaitAny, 1000);
-    if (flags & WIFI_CONNECT_BIT) {
+    uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 1000);
+    if (flags & WIRELESS_CONNECT_BIT) {
         printf("Wi-Fi connected, taking action.\n");
     }
 
-    if (flags & WIFI_DISCONNECT_BIT) {
+    if (flags & WIRELESS_DISCONNECT_BIT) {
         printf("Wi-Fi disconnected, taking action.\n");
     }
 

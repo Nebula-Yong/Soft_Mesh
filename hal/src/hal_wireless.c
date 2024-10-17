@@ -2,6 +2,11 @@
 #include "hal_wifi.h"  // 包含 Wi-Fi 的 HAL 接口实现
 #include <stdio.h>
 #include <string.h>
+#include "cmsis_os2.h"
+
+osEventFlagsId_t wireless_event_flags;  // wifi连接事件标志对象
+#define WIRELESS_CONNECT_BIT    (1 << 0)
+#define WIRELESS_DISCONNECT_BIT (1 << 1)
 
 /**
  * @brief 初始化指定类型的无线通信模块及相关资源
