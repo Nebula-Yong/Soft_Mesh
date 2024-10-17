@@ -39,10 +39,7 @@ enum {
     WIFI_STA_SAMPLE_INIT = 0,       /* 0:初始态 */
     WIFI_STA_SAMPLE_SCANING,        /* 1:扫描中 */
     WIFI_STA_SAMPLE_SCAN_DONE,      /* 2:扫描完成 */
-    WIFI_STA_SAMPLE_FOUND_TARGET,   /* 3:匹配到目标AP */
-    WIFI_STA_SAMPLE_CONNECTING,     /* 4:连接中 */
-    WIFI_STA_SAMPLE_CONNECT_DONE,   /* 5:关联成功 */
-    WIFI_STA_SAMPLE_GET_IP,         /* 6:获取IP */
+    WIFI_STA_SAMPLE_CONNECT_DONE    /* 5:关联成功 */
 } wifi_state_enum;
 
 static td_u8 g_wifi_state = WIFI_STA_SAMPLE_INIT;
