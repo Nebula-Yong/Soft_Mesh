@@ -5,6 +5,7 @@
 #include <stdlib.h>             // 引入动态内存分配
 #include <string.h>
 #include <ctype.h>
+#include "cmsis_os2.h"
 
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
@@ -18,7 +19,7 @@
 
 #define MAX_SCAN_RESULTS 64 // 最大扫描数量
 #define MAC_STR_LEN 18      // MAC 地址字符串长度 (17 个字符 + 1 个 '\0')
-#define MAX_MESH_NODES 5    // 最大 Mesh 节点数量
+#define MESH_MAC_LEN 6      // Mesh MAC 地址长度
 
 // 定义当前状态变量
 static NetworkState current_state;
@@ -29,8 +30,6 @@ static MeshNetworkConfig g_mesh_config;
 // 定义连接配置
 static WirelessSTAConfig sta_config;
 
-// 定义存储Mesh节点信息
-static MeshNode mesh_nodes[MAX_MESH_NODES];
 
 // 初始化状态机
 int network_fsm_init(const MeshNetworkConfig *config) {
@@ -156,7 +155,9 @@ NetworkState state_scanning(void) {
     WirelessScanResult *best_result = NULL;            // 保存最佳网络
     int best_rssi = -9999;                             // 初始化为最小可能的 RSSI
     int best_tree_level = 62;                          // 初始化为最大的树层级（a-z，最大61）
-    int best_mac[3] = {0};                             // 保存最大的 MAC 地址
+    uint8_t best_mac[6] = {0};                         // 保存最大的 MAC 地址
+
+    bool root_mac_defined = memcmp(g_mesh_config.root_mac, (uint8_t[]){0, 0, 0, 0, 0, 0}, sizeof(g_mesh_config.root_mac)) != 0;
 
     // 遍历所有扫描到的网络
     for (int i = 0; i < scanned_count; i++) {
@@ -168,44 +169,49 @@ NetworkState state_scanning(void) {
 
         LOG("  - SSID: %s, RSSI: %d dBm, Channel: %d, BSSID: %s\n",
             scan_results[i].ssid, scan_results[i].rssi, scan_results[i].channel, bssid_str);
-        
-        int mesh_nodes_count = 0;
-        // 只在 ssid_len 大于等于 mesh_prefix_len 时，才进行前缀比较
+
         if (strncmp(scan_results[i].ssid, mesh_prefix, mesh_prefix_len) == 0) {
             LOG("Matching Mesh SSID: %s\n", scan_results[i].ssid);
-            
             size_t ssid_len = strlen(scan_results[i].ssid);
             // 提取树层级，假设树层级字符是 SSID 的最后一位
             char tree_level_char = scan_results[i].ssid[ssid_len - 1];
 
             // 从ssid提取根节点的mac地址
-            uint8_t current_mac[3];
-            current_mac[0] = scan_results[i].ssid[mesh_prefix_len];
-            current_mac[1] = scan_results[i].ssid[mesh_prefix_len + 1];
-            current_mac[2] = scan_results[i].ssid[mesh_prefix_len + 2];
-            LOG("  Root node MAC (last 3 bytes) from SSID: %02X:%02X:%02X\n", current_mac[0], current_mac[1], current_mac[2]);
+            uint8_t current_mac[6];
+            current_mac[0] = scan_results[i].ssid[mesh_prefix_len + 1];
+            current_mac[1] = scan_results[i].ssid[mesh_prefix_len + 2];
+            current_mac[2] = scan_results[i].ssid[mesh_prefix_len + 3];
+            current_mac[3] = scan_results[i].ssid[mesh_prefix_len + 4];
+            current_mac[4] = scan_results[i].ssid[mesh_prefix_len + 5];
+            current_mac[5] = scan_results[i].ssid[mesh_prefix_len + 6];
+
+            LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", current_mac[0], current_mac[1], current_mac[2], current_mac[3], current_mac[4], current_mac[5]);
 
             // 判断是否为有效的树层级字符
             if (is_valid_tree_level_char(tree_level_char)) {
                 int tree_level = tree_level_to_int(tree_level_char);
                 LOG("  Tree level: %d, RSSI: %d\n", tree_level, scan_results[i].rssi);
-                // 将扫描到的 Mesh 节点信息保存到数组中
-                if (mesh_nodes_count < MAX_MESH_NODES) {
-                    strncpy(mesh_nodes[mesh_nodes_count].ssid, scan_results[i].ssid, sizeof(mesh_nodes[mesh_nodes_count].ssid));
-                    memcpy(mesh_nodes[mesh_nodes_count].bssid, scan_results[i].bssid, sizeof(mesh_nodes[mesh_nodes_count].bssid));
-                    mesh_nodes[mesh_nodes_count].rssi = scan_results[i].rssi;
-                    mesh_nodes[mesh_nodes_count].channel = scan_results[i].channel;
-                    mesh_nodes[mesh_nodes_count].tree_level = tree_level;
-                    mesh_nodes_count++;
-                }
-                // 先比较mac地址，再比较rssi，最后比较树层级
-                if(memcmp(current_mac, best_mac, sizeof(current_mac)) > 0 || 
-                    (memcmp(current_mac, best_mac, sizeof(current_mac)) == 0 && scan_results[i].rssi > best_rssi) ||
-                    (memcmp(current_mac, best_mac, sizeof(current_mac)) == 0 && scan_results[i].rssi == best_rssi && tree_level < best_tree_level)) {
-                    best_result = &scan_results[i];
-                    best_rssi = scan_results[i].rssi;
-                    best_tree_level = tree_level;
-                    memcpy(best_mac, current_mac, 3);
+
+                // 如果 root_mac 已经定义，则只比较相同的 root_mac 节点
+                if (root_mac_defined) {
+                    if (memcmp(g_mesh_config.root_mac, current_mac, MESH_MAC_LEN) == 0) {
+                        // 更新最佳结果
+                        best_result = &scan_results[i];
+                        best_rssi = scan_results[i].rssi;
+                        best_tree_level = tree_level;
+                        memcpy(best_mac, current_mac, MESH_MAC_LEN);
+                        break;  // 找到目标根节点后可以直接跳出循环
+                    }
+                } else {
+                    // 将扫描到的 Mesh 节点信息保存到数组中
+                    if (memcmp(current_mac, best_mac, MESH_MAC_LEN) > 0 ||
+                        (memcmp(current_mac, best_mac, MESH_MAC_LEN) == 0 && scan_results[i].rssi > best_rssi) ||
+                        (memcmp(current_mac, best_mac, MESH_MAC_LEN) == 0 && scan_results[i].rssi == best_rssi && tree_level < best_tree_level)) {
+                        best_result = &scan_results[i];
+                        best_rssi = scan_results[i].rssi;
+                        best_tree_level = tree_level;
+                        memcpy(best_mac, current_mac, 6);
+                    }
                 }
             }
         }
@@ -219,6 +225,7 @@ NetworkState state_scanning(void) {
         strncpy(sta_config.ssid, best_result->ssid, sizeof(sta_config.ssid));
         strcpy(sta_config.password, g_mesh_config.password);
         memcpy(sta_config.bssid, best_result->bssid, sizeof(sta_config.bssid));
+        memcpy(g_mesh_config.root_mac, best_mac, sizeof(g_mesh_config.root_mac));  // 更新 root_mac
         sta_config.type = DEFAULT_WIRELESS_TYPE;
 
         free(scan_results);  // 释放内存
@@ -260,9 +267,61 @@ NetworkState state_join_network(void) {
 // 成功连接状态处理函数
 NetworkState state_connected(void) {
     LOG("Scaning other mesh network.\n");
-    // 成功连接后可以继续扫描或处理其他逻辑
-    // 假设此时终止状态机
-    return STATE_TERMINATE;
+    osDelay(100); // 延迟 1s，降低 CPU 占用率
+    // 成功连接后，继续扫描是否存在其他的mesh网络，如果mesh网络的mac比自己的mac大，则加入该网络
+    WirelessScanResult *scan_results = (WirelessScanResult *)malloc(sizeof(WirelessScanResult) * MAX_SCAN_RESULTS);
+    if (scan_results == NULL) {
+        LOG("Memory allocation failed!\n");
+        return STATE_TERMINATE;
+    }
+    int scanned_count = HAL_Wireless_Scan(DEFAULT_WIRELESS_TYPE, &sta_config, scan_results, MAX_SCAN_RESULTS);
+    LOG("Found %d networks:\n", scanned_count);
+
+    const char *mesh_prefix = g_mesh_config.mesh_ssid; // Mesh 自定义 SSID 前缀
+    size_t mesh_prefix_len = strlen(mesh_prefix);      // 计算 Mesh 自定义 SSID 的长度
+    uint8_t current_mac[6];                            // 保存当前节点的 MAC 地址
+    memcpy(current_mac, g_mesh_config.root_mac, MESH_MAC_LEN);
+
+    for (int i = 0; i < scanned_count; i++) {
+
+        // 只在 ssid_len 大于等于 mesh_prefix_len 时，才进行前缀比较
+        if (strncmp(scan_results[i].ssid, mesh_prefix, mesh_prefix_len) == 0) {
+            // 将 bssid 转换为 xx:xx:xx:xx:xx:xx 的格式
+            char bssid_str[MAC_STR_LEN];
+            snprintf(bssid_str, sizeof(bssid_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                    scan_results[i].bssid[0], scan_results[i].bssid[1], scan_results[i].bssid[2],
+                    scan_results[i].bssid[3], scan_results[i].bssid[4], scan_results[i].bssid[5]);
+
+            LOG("  - SSID: %s, RSSI: %d dBm, Channel: %d, BSSID: %s\n",
+                scan_results[i].ssid, scan_results[i].rssi, scan_results[i].channel, bssid_str);
+
+            // 从ssid提取根节点的mac地址
+            uint8_t scanned_mac[6];
+            scanned_mac[0] = scan_results[i].ssid[mesh_prefix_len + 1];
+            scanned_mac[1] = scan_results[i].ssid[mesh_prefix_len + 2];
+            scanned_mac[2] = scan_results[i].ssid[mesh_prefix_len + 3];
+            scanned_mac[3] = scan_results[i].ssid[mesh_prefix_len + 4];
+            scanned_mac[4] = scan_results[i].ssid[mesh_prefix_len + 5];
+            scanned_mac[5] = scan_results[i].ssid[mesh_prefix_len + 6];
+            LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", scanned_mac[0], scanned_mac[1], scanned_mac[2], scanned_mac[3], scanned_mac[4], scanned_mac[5]);
+
+            // 比较 MAC 地址
+            if (memcmp(scanned_mac, current_mac, MESH_MAC_LEN) > 0) {
+                LOG("Found a Mesh network with a larger MAC address, updating configuration.\n");
+                memcpy(g_mesh_config.root_mac, scanned_mac, MESH_MAC_LEN);
+                strncpy(sta_config.ssid, scan_results[i].ssid, sizeof(sta_config.ssid));
+                strcpy(sta_config.password, g_mesh_config.password);
+                memcpy(sta_config.bssid, scan_results[i].bssid, sizeof(sta_config.bssid));
+                sta_config.type = DEFAULT_WIRELESS_TYPE;
+
+                free(scan_results);  // 释放内存
+                return STATE_SCANNING;
+            }
+        }
+    }
+
+    free(scan_results);  // 释放内存
+    return STATE_CONNECTED;
 }
 
 // 创建根节点状态处理函数

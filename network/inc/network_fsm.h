@@ -21,7 +21,8 @@ typedef enum {
 
 // 定义 Mesh 网络配置信息的结构体
 typedef struct {
-    char mesh_ssid[29];           // Mesh 自定义 SSID，28 字节 + 1 结束符
+    char mesh_ssid[23];           // Mesh 自定义 SSID，28 字节 + 1 结束符
+    uint8_t root_mac[6];
     char password[65];            // Mesh 密码，最长 64 字节 + 1 结束符
 } MeshNetworkConfig;
 
