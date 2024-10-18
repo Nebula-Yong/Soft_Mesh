@@ -305,7 +305,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
     }
 
     // 定义连接超时时间（例如 10 秒）
-    const int CONNECT_TIMEOUT_MS = 10000;  // 10 秒超时
+    const int CONNECT_TIMEOUT_MS = 500;  // 10 秒超时
     const int POLL_INTERVAL_MS = 100;      // 每次等待 100 毫秒
     int elapsed_time = 0;
 
