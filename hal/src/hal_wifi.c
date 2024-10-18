@@ -415,6 +415,7 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config) {
     hapd_conf.security_type = (td_u8)config->security;
     hapd_conf.channel_num = config->channel;
     hapd_conf.wifi_psk_type = 0;  // 假设PSK类型为0
+    printf("hapd_conf.channel_num:%d\r\n", hapd_conf.channel_num);
 
     // 高级SoftAp配置
     advanced_conf.beacon_interval = 100;     // Beacon周期设置为100ms

@@ -358,7 +358,7 @@ NetworkState state_create_root(void) {
     WirelessAPConfig ap_config;
     strncpy(ap_config.ssid, root_ssid, sizeof(ap_config.ssid) - 1);
     strncpy(ap_config.password, g_mesh_config.password, sizeof(ap_config.password) - 1);
-    ap_config.channel = 1;  // 使用信道 1
+    ap_config.channel = 6;  // ws63开发板不会生效，设置为0好像会自动筛选一个信道开启，
     ap_config.security = DEFAULT_WIRELESS_SECURITY;
     ap_config.type = DEFAULT_WIRELESS_TYPE;
     if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config) != 0) {
