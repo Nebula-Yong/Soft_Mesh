@@ -150,6 +150,7 @@ NetworkState state_scanning(void) {
         return STATE_TERMINATE;
     }
 
+    printf("sta_config ssid:%s\n", sta_config.ssid);
     // 扫描网络
     int scanned_count = HAL_Wireless_Scan(DEFAULT_WIRELESS_TYPE, &sta_config, scan_results, MAX_SCAN_RESULTS);
     LOG("Found %d networks:\n", scanned_count);
@@ -250,7 +251,11 @@ NetworkState state_join_existing_network(void) {
         return STATE_CONNECTED;
     } else {
         LOG("Failed to connect to Mesh network.\n");
-        return STATE_STARTUP;
+        memset(g_mesh_config.root_mac, 0, MESH_MAC_LEN);                 // 清空 root_mac
+        memset(sta_config.ssid, 0, sizeof(sta_config.ssid));             // 清空 ssid
+        memset(sta_config.password, 0, sizeof(sta_config.password));     // 清空 password
+        memset(sta_config.bssid, 0, sizeof(sta_config.bssid));           // 清空 bssid
+        return STATE_SCANNING;
     }
 }
 
@@ -270,74 +275,76 @@ NetworkState state_join_network(void) {
 
 // 成功连接状态处理函数
 NetworkState state_connected(void) {
-    uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 1000);
-    if (flags & WIRELESS_CONNECT_BIT) {
-        printf("Wi-Fi connected, taking action.\n");
-    }
+    uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 500);
+    LOG("Wi-Fi event flags: 0x%08X\n", flags);
+    if (flags & WIRELESS_CONNECT_BIT || flags == osFlagsErrorTimeout) {
+        LOG("Wi-Fi connected or nothing happen.\n");
+        LOG("Scaning other mesh network.\n");
+        // 成功连接后，继续扫描是否存在其他的mesh网络，如果mesh网络的mac比自己的mac大，则加入该网络
+        WirelessScanResult *scan_results = (WirelessScanResult *)malloc(sizeof(WirelessScanResult) * MAX_SCAN_RESULTS);
+        if (scan_results == NULL) {
+            LOG("Memory allocation failed!\n");
+            return STATE_TERMINATE;
+        }
+        int scanned_count = HAL_Wireless_Scan(DEFAULT_WIRELESS_TYPE, &sta_config, scan_results, MAX_SCAN_RESULTS);
+        LOG("Found %d networks:\n", scanned_count);
 
-    if (flags & WIRELESS_DISCONNECT_BIT) {
-        printf("Wi-Fi disconnected, taking action.\n");
-    }
+        const char *mesh_prefix = g_mesh_config.mesh_ssid; // Mesh 自定义 SSID 前缀
+        size_t mesh_prefix_len = strlen(mesh_prefix);      // 计算 Mesh 自定义 SSID 的长度
+        uint8_t current_mac[6];                            // 保存当前节点的 MAC 地址
+        memcpy(current_mac, g_mesh_config.root_mac, MESH_MAC_LEN);
 
-    if (flags == osFlagsErrorTimeout) {
-        printf("Timeout: no Wi-Fi event within 1 second.\n");
-    }
-    LOG("Scaning other mesh network.\n");
-    osDelay(100); // 延迟 1s，降低 CPU 占用率
-    // 成功连接后，继续扫描是否存在其他的mesh网络，如果mesh网络的mac比自己的mac大，则加入该网络
-    WirelessScanResult *scan_results = (WirelessScanResult *)malloc(sizeof(WirelessScanResult) * MAX_SCAN_RESULTS);
-    if (scan_results == NULL) {
-        LOG("Memory allocation failed!\n");
-        return STATE_TERMINATE;
-    }
-    int scanned_count = HAL_Wireless_Scan(DEFAULT_WIRELESS_TYPE, &sta_config, scan_results, MAX_SCAN_RESULTS);
-    LOG("Found %d networks:\n", scanned_count);
+        for (int i = 0; i < scanned_count; i++) {
 
-    const char *mesh_prefix = g_mesh_config.mesh_ssid; // Mesh 自定义 SSID 前缀
-    size_t mesh_prefix_len = strlen(mesh_prefix);      // 计算 Mesh 自定义 SSID 的长度
-    uint8_t current_mac[6];                            // 保存当前节点的 MAC 地址
-    memcpy(current_mac, g_mesh_config.root_mac, MESH_MAC_LEN);
+            // 只在 ssid_len 大于等于 mesh_prefix_len 时，才进行前缀比较
+            if (strncmp(scan_results[i].ssid, mesh_prefix, mesh_prefix_len) == 0) {
+                // 将 bssid 转换为 xx:xx:xx:xx:xx:xx 的格式
+                char bssid_str[MAC_STR_LEN];
+                snprintf(bssid_str, sizeof(bssid_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                        scan_results[i].bssid[0], scan_results[i].bssid[1], scan_results[i].bssid[2],
+                        scan_results[i].bssid[3], scan_results[i].bssid[4], scan_results[i].bssid[5]);
 
-    for (int i = 0; i < scanned_count; i++) {
+                LOG("  - SSID: %s, RSSI: %d dBm, Channel: %d, BSSID: %s\n",
+                    scan_results[i].ssid, scan_results[i].rssi, scan_results[i].channel, bssid_str);
 
-        // 只在 ssid_len 大于等于 mesh_prefix_len 时，才进行前缀比较
-        if (strncmp(scan_results[i].ssid, mesh_prefix, mesh_prefix_len) == 0) {
-            // 将 bssid 转换为 xx:xx:xx:xx:xx:xx 的格式
-            char bssid_str[MAC_STR_LEN];
-            snprintf(bssid_str, sizeof(bssid_str), "%02X:%02X:%02X:%02X:%02X:%02X",
-                    scan_results[i].bssid[0], scan_results[i].bssid[1], scan_results[i].bssid[2],
-                    scan_results[i].bssid[3], scan_results[i].bssid[4], scan_results[i].bssid[5]);
+                // 从ssid提取根节点的mac地址
+                uint8_t scanned_mac[6];
+                scanned_mac[0] = scan_results[i].ssid[mesh_prefix_len + 1];
+                scanned_mac[1] = scan_results[i].ssid[mesh_prefix_len + 2];
+                scanned_mac[2] = scan_results[i].ssid[mesh_prefix_len + 3];
+                scanned_mac[3] = scan_results[i].ssid[mesh_prefix_len + 4];
+                scanned_mac[4] = scan_results[i].ssid[mesh_prefix_len + 5];
+                scanned_mac[5] = scan_results[i].ssid[mesh_prefix_len + 6];
+                LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", scanned_mac[0], scanned_mac[1], scanned_mac[2], scanned_mac[3], scanned_mac[4], scanned_mac[5]);
 
-            LOG("  - SSID: %s, RSSI: %d dBm, Channel: %d, BSSID: %s\n",
-                scan_results[i].ssid, scan_results[i].rssi, scan_results[i].channel, bssid_str);
+                // 比较 MAC 地址
+                if (memcmp(scanned_mac, current_mac, MESH_MAC_LEN) > 0) {
+                    LOG("Found a Mesh network with a larger MAC address, updating configuration.\n");
+                    memcpy(g_mesh_config.root_mac, scanned_mac, MESH_MAC_LEN);
+                    strncpy(sta_config.ssid, scan_results[i].ssid, sizeof(sta_config.ssid));
+                    strcpy(sta_config.password, g_mesh_config.password);
+                    memcpy(sta_config.bssid, scan_results[i].bssid, sizeof(sta_config.bssid));
+                    sta_config.type = DEFAULT_WIRELESS_TYPE;
 
-            // 从ssid提取根节点的mac地址
-            uint8_t scanned_mac[6];
-            scanned_mac[0] = scan_results[i].ssid[mesh_prefix_len + 1];
-            scanned_mac[1] = scan_results[i].ssid[mesh_prefix_len + 2];
-            scanned_mac[2] = scan_results[i].ssid[mesh_prefix_len + 3];
-            scanned_mac[3] = scan_results[i].ssid[mesh_prefix_len + 4];
-            scanned_mac[4] = scan_results[i].ssid[mesh_prefix_len + 5];
-            scanned_mac[5] = scan_results[i].ssid[mesh_prefix_len + 6];
-            LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", scanned_mac[0], scanned_mac[1], scanned_mac[2], scanned_mac[3], scanned_mac[4], scanned_mac[5]);
-
-            // 比较 MAC 地址
-            if (memcmp(scanned_mac, current_mac, MESH_MAC_LEN) > 0) {
-                LOG("Found a Mesh network with a larger MAC address, updating configuration.\n");
-                memcpy(g_mesh_config.root_mac, scanned_mac, MESH_MAC_LEN);
-                strncpy(sta_config.ssid, scan_results[i].ssid, sizeof(sta_config.ssid));
-                strcpy(sta_config.password, g_mesh_config.password);
-                memcpy(sta_config.bssid, scan_results[i].bssid, sizeof(sta_config.bssid));
-                sta_config.type = DEFAULT_WIRELESS_TYPE;
-
-                free(scan_results);  // 释放内存
-                return STATE_SCANNING;
+                    free(scan_results);  // 释放内存
+                    return STATE_SCANNING;
+                }
             }
         }
+        free(scan_results);  // 释放内存
+        return STATE_CONNECTED;
+    }else if (flags & WIRELESS_DISCONNECT_BIT) {
+        LOG("Wi-Fi disconnected, taking action.\n");
+        memset(g_mesh_config.root_mac, 0, MESH_MAC_LEN);                 // 清空 root_mac
+        memset(sta_config.ssid, 0, sizeof(sta_config.ssid));             // 清空 ssid
+        memset(sta_config.password, 0, sizeof(sta_config.password));     // 清空 password
+        memset(sta_config.bssid, 0, sizeof(sta_config.bssid));           // 清空 bssid
+        osDelay(1000); // 延迟 10s，等待断连的WiFi完全消失
+        return STATE_SCANNING;
+    }else{
+        return STATE_CONNECTED;
     }
-
-    free(scan_results);  // 释放内存
-    return STATE_CONNECTED;
+    
 }
 
 // 创建根节点状态处理函数
