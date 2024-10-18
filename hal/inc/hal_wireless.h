@@ -16,6 +16,7 @@ typedef enum {
 } WirelessType;
 
 #define DEFAULT_WIRELESS_TYPE WIRELESS_TYPE_WIFI
+#define DEFAULT_WIRELESS_SECURITY 2
 
 /** 通用无线接入点扫描结果结构体 */
 typedef struct {
