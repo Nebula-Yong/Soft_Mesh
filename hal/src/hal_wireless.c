@@ -336,3 +336,31 @@ int HAL_Wireless_GetConnectedDeviceInfo(WirelessType type, WirelessConnectedInfo
     }
     return ret;
 }
+
+/**
+ * @brief 获取AP模式下的MAC地址
+ * @param type 指定无线通信类型。
+ * @param[out] mac 存储MAC地址的缓冲区，WIFI的MAC长度为6字节
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac)
+{
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_GetAPMacAddress(mac);
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_GetAPMacAddress(mac);
+            printf("Bluetooth AP MAC address retrieval not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_GetAPMacAddress(mac);
+            printf("nearlink AP MAC address retrieval not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}

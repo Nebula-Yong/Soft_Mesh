@@ -501,3 +501,19 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
     // 成功返回STA列表信息
     return 0;
 }
+
+int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr) {
+    if (mac_addr == NULL) {
+        printf("Invalid input: mac_addr is NULL.\n");
+        return -1;
+    }
+    int8_t temp_mac[6] = {0};
+    // 获取 SoftAP MAC 地址
+    if (wifi_softap_get_mac_addr(temp_mac, 6) != 0) {
+        printf("Failed to get SoftAP MAC address.\n");
+        return -1;
+    }
+    // 将 MAC 地址拷贝到输出参数中
+    memcpy(mac_addr, temp_mac, 6);
+    return 0;
+}

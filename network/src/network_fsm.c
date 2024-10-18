@@ -350,7 +350,26 @@ NetworkState state_connected(void) {
 // 创建根节点状态处理函数
 NetworkState state_create_root(void) {
     LOG("Creating new root node for Mesh network...\n");
-    // 创建根节点成功后进入根节点冲突检查状态
+    // 创建根节点
+    // AP热点名格式：FsrMesh_EFAB01_0
+    // 0表示根节点，1-9表示树层级
+    char root_ssid[33];
+    uint8_t ap_mac[6];
+    memset(ap_mac, 0, sizeof(ap_mac));
+    HAL_Wireless_GetAPMacAddress(DEFAULT_WIRELESS_TYPE, ap_mac);
+    snprintf(root_ssid, sizeof(root_ssid), "FsrMesh_%02X%02X%02X_0", ap_mac[3], ap_mac[4], ap_mac[5]);
+    LOG("Creating new root node with SSID: %s\n", root_ssid);
+    WirelessAPConfig ap_config;
+    strncpy(ap_config.ssid, root_ssid, sizeof(ap_config.ssid) - 1);
+    strncpy(ap_config.password, g_mesh_config.password, sizeof(ap_config.password) - 1);
+    ap_config.channel = 1;  // 使用信道 1
+    ap_config.security = 2;
+    ap_config.type = DEFAULT_WIRELESS_TYPE;
+    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config) != 0) {
+        printf("Failed to start AP mode.\n");
+    } else {
+        printf("AP mode started successfully with SSID: %s\n", root_ssid);
+    }
     return STATE_CHECK_ROOT_CONFLICT;
 }
 

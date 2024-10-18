@@ -137,6 +137,14 @@ int HAL_Wireless_GetIP(WirelessType type, char *ip_buffer, int buffer_len);
  */
 int HAL_Wireless_GetConnectedDeviceInfo(WirelessType type, WirelessConnectedInfo *result, uint32_t *size);
 
+/**
+ * @brief 获取无线通信模块作为AP时的MAC地址
+ * @param type 指定无线通信类型。
+ * @param[out] mac 存储MAC地址的缓冲区，至少需要6字节
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac);
+
 #ifdef __cplusplus
 }
 #endif
