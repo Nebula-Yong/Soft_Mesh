@@ -34,6 +34,9 @@ static MeshNetworkConfig g_mesh_config;
 // 定义连接配置
 static WirelessSTAConfig sta_config;
 
+// 是否是根节点标记位
+static bool is_root = false;
+
 
 // 初始化状态机
 int network_fsm_init(const MeshNetworkConfig *config) {
@@ -70,26 +73,17 @@ void network_fsm_run(void) {
             case STATE_JOIN_EXISTING_NETWORK:
                 current_state = state_join_existing_network();
                 break;
-            case STATE_CHECK_ROOT_COUNT:
-                current_state = state_check_root_count();
-                break;
-            case STATE_JOIN_NETWORK:
-                current_state = state_join_network();
-                break;
-            case STATE_CONNECTED:
-                current_state = state_connected();
-                break;
-            case STATE_CREATE_ROOT:
-                current_state = state_create_root();
+            case STATE_OPEN_AP:
+                current_state = state_open_ap();
                 break;
             case STATE_CHECK_ROOT_CONFLICT:
                 current_state = state_check_root_conflict();
                 break;
-            case STATE_HANDLE_ROOT_CONFLICT:
-                current_state = state_handle_root_conflict();
+            case STATE_CREATE_ROOT:
+                current_state = state_create_root();
                 break;
-            case STATE_ROOT_ELECTION:
-                current_state = state_root_election();
+            case STATE_TERMINATE:
+                current_state = state_terminate();
                 break;
             default:
                 LOG("Unknown state, terminating...\n");
@@ -140,8 +134,31 @@ static int tree_level_to_int(char tree_level_char) {
     return -1; // 无效字符
 }
 
+// 将数字转换为树层级字符（0-9对应0-9，10-35对应A-Z，36-61对应a-z）
+static char int_to_tree_level(int tree_level_int) {
+    if (tree_level_int >= 0 && tree_level_int <= 9) {
+        return '0' + tree_level_int;
+    } else if (tree_level_int >= 10 && tree_level_int <= 35) {
+        return 'A' + tree_level_int - 10;
+    } else if (tree_level_int >= 36 && tree_level_int <= 61) {
+        return 'a' + tree_level_int - 36;
+    }
+    return '\0'; // 无效数字
+}
+
+// 从SSID提取MAC地址
+static void extract_mac_from_ssid(const char *ssid, size_t prefix_len, uint8_t *mac) {
+    mac[0] = ssid[prefix_len + 1];
+    mac[1] = ssid[prefix_len + 2];
+    mac[2] = ssid[prefix_len + 3];
+    mac[3] = ssid[prefix_len + 4];
+    mac[4] = ssid[prefix_len + 5];
+    mac[5] = ssid[prefix_len + 6];
+}
+
 // 扫描状态处理函数
 NetworkState state_scanning(void) {
+    is_root = false;
     LOG("Scanning for existing Mesh networks...\n");
 
     WirelessScanResult *scan_results = (WirelessScanResult *)malloc(sizeof(WirelessScanResult) * MAX_SCAN_RESULTS);
@@ -183,12 +200,7 @@ NetworkState state_scanning(void) {
 
             // 从ssid提取根节点的mac地址
             uint8_t current_mac[6];
-            current_mac[0] = scan_results[i].ssid[mesh_prefix_len + 1];
-            current_mac[1] = scan_results[i].ssid[mesh_prefix_len + 2];
-            current_mac[2] = scan_results[i].ssid[mesh_prefix_len + 3];
-            current_mac[3] = scan_results[i].ssid[mesh_prefix_len + 4];
-            current_mac[4] = scan_results[i].ssid[mesh_prefix_len + 5];
-            current_mac[5] = scan_results[i].ssid[mesh_prefix_len + 6];
+            extract_mac_from_ssid(scan_results[i].ssid, mesh_prefix_len, current_mac);
 
             LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", current_mac[0], current_mac[1], current_mac[2], current_mac[3], current_mac[4], current_mac[5]);
 
@@ -231,6 +243,7 @@ NetworkState state_scanning(void) {
         strcpy(sta_config.password, g_mesh_config.password);
         memcpy(sta_config.bssid, best_result->bssid, sizeof(sta_config.bssid));
         memcpy(g_mesh_config.root_mac, best_mac, sizeof(g_mesh_config.root_mac));  // 更新 root_mac
+        g_mesh_config.tree_level = best_tree_level;  // 更新树层级
         sta_config.type = DEFAULT_WIRELESS_TYPE;
 
         free(scan_results);  // 释放内存
@@ -248,7 +261,7 @@ NetworkState state_join_existing_network(void) {
     // 连接到扫描到的最佳网络
     if (HAL_Wireless_Connect(DEFAULT_WIRELESS_TYPE, &sta_config) == 0) {
         LOG("Successfully connected to Mesh network.\n");
-        return STATE_CONNECTED;
+        return STATE_OPEN_AP;
     } else {
         LOG("Failed to connect to Mesh network.\n");
         memset(g_mesh_config.root_mac, 0, MESH_MAC_LEN);                 // 清空 root_mac
@@ -259,27 +272,34 @@ NetworkState state_join_existing_network(void) {
     }
 }
 
-// 检查根节点个数状态处理函数
-NetworkState state_check_root_count(void) {
-    LOG("Checking root node count...\n");
-    // 假设根节点数量检查完成，进入下一状态
-    return STATE_JOIN_NETWORK;
+// 开启 AP 模式状态处理函数
+NetworkState state_open_ap(void) {
+    LOG("Opening AP mode...\n");
+    char ap_ssid[33];
+    char tree_level_char = int_to_tree_level(g_mesh_config.tree_level + 1);
+    snprintf(ap_ssid, sizeof(ap_ssid), "%s_%c%c%c%c%c%c_%c", g_mesh_config.mesh_ssid, g_mesh_config.root_mac[0], g_mesh_config.root_mac[1], g_mesh_config.root_mac[2], g_mesh_config.root_mac[3], g_mesh_config.root_mac[4], g_mesh_config.root_mac[5], tree_level_char);
+    
+    WirelessAPConfig ap_config;
+    strncpy(ap_config.ssid, ap_ssid, sizeof(ap_config.ssid) - 1);
+    strncpy(ap_config.password, g_mesh_config.password, sizeof(ap_config.password) - 1);
+    ap_config.channel = 6;  // ws63开发板不会生效，设置为0好像会自动筛选一个信道开启，
+    ap_config.security = DEFAULT_WIRELESS_SECURITY;
+    ap_config.type = DEFAULT_WIRELESS_TYPE;
+    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config) != 0) {
+        LOG("Failed to start AP mode.\n");
+        return STATE_TERMINATE;
+    } else {
+        LOG("AP mode started successfully with SSID: %s\n", ap_ssid);
+        return STATE_CHECK_ROOT_CONFLICT;
+    }
 }
 
-// 加入网络状态处理函数
-NetworkState state_join_network(void) {
-    LOG("Joining network...\n");
-    // 假设成功连接
-    return STATE_CONNECTED;
-}
-
-// 成功连接状态处理函数
-NetworkState state_connected(void) {
-    uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 500);
-    LOG("Wi-Fi event flags: 0x%08X\n", flags);
+// 检查根节点冲突状态处理函数
+NetworkState state_check_root_conflict(void) {
+    uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 100);
+    printf("flag:%d", flags);
     if (flags & WIRELESS_CONNECT_BIT || flags == osFlagsErrorTimeout) {
         LOG("Wi-Fi connected or nothing happen.\n");
-        LOG("Scaning other mesh network.\n");
         // 成功连接后，继续扫描是否存在其他的mesh网络，如果mesh网络的mac比自己的mac大，则加入该网络
         WirelessScanResult *scan_results = (WirelessScanResult *)malloc(sizeof(WirelessScanResult) * MAX_SCAN_RESULTS);
         if (scan_results == NULL) {
@@ -287,7 +307,6 @@ NetworkState state_connected(void) {
             return STATE_TERMINATE;
         }
         int scanned_count = HAL_Wireless_Scan(DEFAULT_WIRELESS_TYPE, &sta_config, scan_results, MAX_SCAN_RESULTS);
-        LOG("Found %d networks:\n", scanned_count);
 
         const char *mesh_prefix = g_mesh_config.mesh_ssid; // Mesh 自定义 SSID 前缀
         size_t mesh_prefix_len = strlen(mesh_prefix);      // 计算 Mesh 自定义 SSID 的长度
@@ -309,40 +328,41 @@ NetworkState state_connected(void) {
 
                 // 从ssid提取根节点的mac地址
                 uint8_t scanned_mac[6];
-                scanned_mac[0] = scan_results[i].ssid[mesh_prefix_len + 1];
-                scanned_mac[1] = scan_results[i].ssid[mesh_prefix_len + 2];
-                scanned_mac[2] = scan_results[i].ssid[mesh_prefix_len + 3];
-                scanned_mac[3] = scan_results[i].ssid[mesh_prefix_len + 4];
-                scanned_mac[4] = scan_results[i].ssid[mesh_prefix_len + 5];
-                scanned_mac[5] = scan_results[i].ssid[mesh_prefix_len + 6];
-                LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", scanned_mac[0], scanned_mac[1], scanned_mac[2], scanned_mac[3], scanned_mac[4], scanned_mac[5]);
+                extract_mac_from_ssid(scan_results[i].ssid, mesh_prefix_len, scanned_mac);
+                // 打印当前节点的mac地址
+                LOG("  Current node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", scanned_mac[0], scanned_mac[1], scanned_mac[2], scanned_mac[3], scanned_mac[4], scanned_mac[5]);
+                LOG("  Root node MAC (last 3 bytes) from SSID: %c%c:%c%c:%c%c\n", current_mac[0], current_mac[1], scanned_mac[2], current_mac[3], current_mac[4], current_mac[5]);
 
                 // 比较 MAC 地址
                 if (memcmp(scanned_mac, current_mac, MESH_MAC_LEN) > 0) {
                     LOG("Found a Mesh network with a larger MAC address, updating configuration.\n");
+                    // 更新要连接的Mesh网络根节点的MAC标识
                     memcpy(g_mesh_config.root_mac, scanned_mac, MESH_MAC_LEN);
                     strncpy(sta_config.ssid, scan_results[i].ssid, sizeof(sta_config.ssid));
                     strcpy(sta_config.password, g_mesh_config.password);
                     memcpy(sta_config.bssid, scan_results[i].bssid, sizeof(sta_config.bssid));
                     sta_config.type = DEFAULT_WIRELESS_TYPE;
-
+                    // 关闭AP模式
+                    HAL_Wireless_DisableAP(DEFAULT_WIRELESS_TYPE);
                     free(scan_results);  // 释放内存
                     return STATE_SCANNING;
                 }
             }
         }
         free(scan_results);  // 释放内存
-        return STATE_CONNECTED;
-    }else if (flags & WIRELESS_DISCONNECT_BIT) {
+        return STATE_CHECK_ROOT_CONFLICT;
+    }else if (flags & WIRELESS_DISCONNECT_BIT && is_root == false) {
         LOG("Wi-Fi disconnected, taking action.\n");
         memset(g_mesh_config.root_mac, 0, MESH_MAC_LEN);                 // 清空 root_mac
         memset(sta_config.ssid, 0, sizeof(sta_config.ssid));             // 清空 ssid
         memset(sta_config.password, 0, sizeof(sta_config.password));     // 清空 password
         memset(sta_config.bssid, 0, sizeof(sta_config.bssid));           // 清空 bssid
-        osDelay(1000); // 延迟 10s，等待断连的WiFi完全消失
+        // 关闭AP模式
+        HAL_Wireless_DisableAP(DEFAULT_WIRELESS_TYPE);
+        osDelay(100); // 延迟 1s，等待断连的WiFi完全消失
         return STATE_SCANNING;
     }else{
-        return STATE_CONNECTED;
+        return STATE_CHECK_ROOT_CONFLICT;
     }
     
 }
@@ -354,7 +374,11 @@ NetworkState state_create_root(void) {
     uint8_t ap_mac[6];
     memset(ap_mac, 0, sizeof(ap_mac));
     HAL_Wireless_GetAPMacAddress(DEFAULT_WIRELESS_TYPE, ap_mac);
-    snprintf(root_ssid, sizeof(root_ssid), "FsrMesh_%02X%02X%02X_0", ap_mac[3], ap_mac[4], ap_mac[5]);
+    // 将mac后三位转换为字符写入g_mesh_config.root_mac
+    char temp_mac[7];
+    snprintf(temp_mac, sizeof(temp_mac), "%02X%02X%02X", ap_mac[3], ap_mac[4], ap_mac[5]);
+    memcpy(g_mesh_config.root_mac, temp_mac, MESH_MAC_LEN);
+    snprintf(root_ssid, sizeof(root_ssid), "%s_%02X%02X%02X_0", g_mesh_config.mesh_ssid, ap_mac[3], ap_mac[4], ap_mac[5]);
     WirelessAPConfig ap_config;
     strncpy(ap_config.ssid, root_ssid, sizeof(ap_config.ssid) - 1);
     strncpy(ap_config.password, g_mesh_config.password, sizeof(ap_config.password) - 1);
@@ -363,34 +387,15 @@ NetworkState state_create_root(void) {
     ap_config.type = DEFAULT_WIRELESS_TYPE;
     if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config) != 0) {
         LOG("Failed to start AP mode.\n");
+        return STATE_TERMINATE;
     } else {
         LOG("AP mode started successfully with SSID: %s\n", root_ssid);
+        is_root = true;
     }
     return STATE_CHECK_ROOT_CONFLICT;
 }
 
-// 检查根节点冲突状态处理函数
-NetworkState state_check_root_conflict(void) {
-    LOG("Checking for root node conflicts...\n");
-    // 假设检测到根节点冲突
-    bool root_conflict_detected = true;
-    if (root_conflict_detected) {
-        return STATE_HANDLE_ROOT_CONFLICT;
-    } else {
-        return STATE_CONNECTED;
-    }
-}
-
-// 处理根节点冲突状态处理函数
-NetworkState state_handle_root_conflict(void) {
-    LOG("Handling root node conflict...\n");
-    // 假设冲突处理完成后执行根节点选举
-    return STATE_ROOT_ELECTION;
-}
-
-// 根节点选举状态处理函数
-NetworkState state_root_election(void) {
-    LOG("Executing root node election...\n");
-    // 假设选举完成，成功成为根节点
-    return STATE_CONNECTED;
+NetworkState state_terminate(void) {
+    LOG("Terminating network state machine...\n");
+    return STATE_TERMINATE;
 }
