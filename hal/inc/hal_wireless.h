@@ -15,6 +15,9 @@ typedef enum {
     WIRELESS_TYPE_MAX                // 最大类型，标识边界
 } WirelessType;
 
+#define DEFAULT_WIRELESS_TYPE WIRELESS_TYPE_WIFI
+#define DEFAULT_WIRELESS_SECURITY 2
+
 /** 通用无线接入点扫描结果结构体 */
 typedef struct {
     char ssid[33];                // SSID (最多32字节 + 1 结束符)
@@ -134,6 +137,14 @@ int HAL_Wireless_GetIP(WirelessType type, char *ip_buffer, int buffer_len);
  * @return 0 表示成功，其他表示失败
  */
 int HAL_Wireless_GetConnectedDeviceInfo(WirelessType type, WirelessConnectedInfo *result, uint32_t *size);
+
+/**
+ * @brief 获取无线通信模块作为AP时的MAC地址
+ * @param type 指定无线通信类型。
+ * @param[out] mac 存储MAC地址的缓冲区，至少需要6字节
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac);
 
 #ifdef __cplusplus
 }

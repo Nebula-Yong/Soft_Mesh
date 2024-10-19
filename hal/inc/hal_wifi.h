@@ -147,13 +147,11 @@ int HAL_WiFi_Disconnect(void);
 int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size);
 
 /**
- * @brief 查询已连接 STA 的 MAC 和 IP 地址，并将其写入结构体数组。
- * 
- * @param[out] sta_info_array 用于存储已连接 STA 信息的结构体数组
- * @param[in,out] sta_count 传入结构体数组的长度，返回时为已连接的 STA 数量
- * 
- * @return 0 表示成功，其他值表示失败
+ * @brief 获取开启AP模式的MAC地址
+ * @param mac_addr 存储MAC地址的缓冲区，长度至少为6字节
+ * @return 0表示成功，其他表示失败
  */
+int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr);
 
 #ifdef __cplusplus
 }

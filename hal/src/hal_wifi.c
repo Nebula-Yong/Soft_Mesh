@@ -26,6 +26,10 @@
 #define SCAN_POLL_INTERVAL_MS            10        // 每次轮询扫描状态的时间间隔（毫秒）
 #define WIFI_GET_IP_MAX_COUNT            300
 
+extern osEventFlagsId_t wireless_event_flags;
+#define WIRELESS_CONNECT_BIT    (1 << 0)
+#define WIRELESS_DISCONNECT_BIT (1 << 1)
+
 static td_void wifi_scan_state_changed(td_s32 state, td_s32 size);
 static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru *info, td_s32 reason_code);
 static char g_sta_ip[16] = {0};  // 保存 STA 模式的 IP 地址
@@ -39,11 +43,15 @@ enum {
     WIFI_STA_SAMPLE_INIT = 0,       /* 0:初始态 */
     WIFI_STA_SAMPLE_SCANING,        /* 1:扫描中 */
     WIFI_STA_SAMPLE_SCAN_DONE,      /* 2:扫描完成 */
-    WIFI_STA_SAMPLE_FOUND_TARGET,   /* 3:匹配到目标AP */
-    WIFI_STA_SAMPLE_CONNECTING,     /* 4:连接中 */
-    WIFI_STA_SAMPLE_CONNECT_DONE,   /* 5:关联成功 */
-    WIFI_STA_SAMPLE_GET_IP,         /* 6:获取IP */
+    WIFI_STA_SAMPLE_CONNECT_DONE    /* 5:关联成功 */
 } wifi_state_enum;
+
+void CreateWirelessEventFlags(void) {
+    wireless_event_flags = osEventFlagsNew(NULL);  // 使用默认属性创建事件标志
+    if (wireless_event_flags == NULL) {
+        perror("Failed to create Wi-Fi event flags.\r\n");
+    }
+}
 
 static td_u8 g_wifi_state = WIFI_STA_SAMPLE_INIT;
 
@@ -69,13 +77,16 @@ static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru
     if (state == WIFI_NOT_AVALLIABLE) {
         perror("Connect fail!. try agin !\r\n");
         g_wifi_state = WIFI_STA_SAMPLE_INIT;
+        osEventFlagsSet(wireless_event_flags, WIRELESS_DISCONNECT_BIT);
     } else {
         g_wifi_state = WIFI_STA_SAMPLE_CONNECT_DONE;
+        osEventFlagsSet(wireless_event_flags, WIRELESS_CONNECT_BIT);
     }
 }
 
 int HAL_WiFi_Init(void)
 {
+    CreateWirelessEventFlags();
 
     /* 注册事件回调 */
     if (wifi_register_event_cb(&wifi_event_cb) != 0) {
@@ -294,7 +305,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
     }
 
     // 定义连接超时时间（例如 10 秒）
-    const int CONNECT_TIMEOUT_MS = 10000;  // 10 秒超时
+    const int CONNECT_TIMEOUT_MS = 500;  // 10 秒超时
     const int POLL_INTERVAL_MS = 100;      // 每次等待 100 毫秒
     int elapsed_time = 0;
 
@@ -404,6 +415,7 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config) {
     hapd_conf.security_type = (td_u8)config->security;
     hapd_conf.channel_num = config->channel;
     hapd_conf.wifi_psk_type = 0;  // 假设PSK类型为0
+    printf("hapd_conf.channel_num:%d\r\n", hapd_conf.channel_num);
 
     // 高级SoftAp配置
     advanced_conf.beacon_interval = 100;     // Beacon周期设置为100ms
@@ -488,5 +500,21 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
     }
 
     // 成功返回STA列表信息
+    return 0;
+}
+
+int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr) {
+    if (mac_addr == NULL) {
+        printf("Invalid input: mac_addr is NULL.\n");
+        return -1;
+    }
+    int8_t temp_mac[6] = {0};
+    // 获取 SoftAP MAC 地址
+    if (wifi_softap_get_mac_addr(temp_mac, 6) != 0) {
+        printf("Failed to get SoftAP MAC address.\n");
+        return -1;
+    }
+    // 将 MAC 地址拷贝到输出参数中
+    memcpy(mac_addr, temp_mac, 6);
     return 0;
 }
