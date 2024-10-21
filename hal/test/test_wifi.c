@@ -92,7 +92,7 @@ void sta_sample_task(void *param)
 
     // 启动AP模式
     printf("Starting AP mode with SSID: %s\n", AP_SSID);
-    if (HAL_WiFi_AP_Enable(&ap_config) != 0) {
+    if (HAL_WiFi_AP_Enable(&ap_config, 1) != 0) {
         printf("Failed to start AP mode.\n");
     } else {
         printf("AP mode started successfully with SSID: %s\n", AP_SSID);
