@@ -98,6 +98,28 @@ void sta_sample_task(void *param)
         printf("AP mode started successfully with SSID: %s\n", AP_SSID);
     }
 
+    // 测试发送数据
+    const char *test_data = "Hello, World!";
+    char *server_ip = "192.168.137.1";
+    uint16_t port = 8080;
+    result = HAL_WiFi_Send_data(server_ip, port, test_data);
+    if (result != 0) {
+        printf("Failed to send data to server.\n");
+    } else {
+        printf("Data sent successfully to server.\n");
+    }
+
+    // 测试接收数据
+    char buffer[128];
+    char client_ip[16];
+    server_ip = "192.168.43.1";
+    result = HAL_WiFi_Receive_data(server_ip, port, buffer, sizeof(buffer), client_ip);
+    if (result != 0) {
+        printf("Failed to receive data from client.\n");
+    } else {
+        printf("Received data: %s from client: %s\n", buffer, client_ip);
+    }
+
     // 循环读取连接到AP的STA设备信息
     WiFiSTAInfo sta_info[8];
     uint32_t sta_num = 8;

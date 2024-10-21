@@ -153,6 +153,25 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size);
  */
 int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr);
 
+/**
+ * @brief 通过Wi-Fi发送数据
+ * @param ip 目标IP地址
+ * @param port 目标端口
+ * @param data 要发送的数据
+ * @return 0表示成功，其他表示失败
+ */
+int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data);
+
+/**
+ * @brief 通过Wi-Fi接收数据
+ * @param ip 发送数据的IP地址
+ * @param port 发送数据的端口
+ * @param buffer 存储接收数据的缓冲区
+ * @param buffer_len 缓冲区的长度
+ * @param client_ip 存储发送数据的客户端IP地址
+ */
+int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffer_len, char *client_ip);
+
 #ifdef __cplusplus
 }
 #endif

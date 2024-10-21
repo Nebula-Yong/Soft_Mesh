@@ -15,6 +15,8 @@
 #include "wifi_hotspot.h"
 #include "wifi_hotspot_config.h"
 #include "lwip/etharp.h"
+//socket相关库文件
+#include "lwip/sockets.h"
 
 
 // 定义宏，用于自动传递 __FILE__, __func__, __LINE__ 给打印函数
@@ -516,5 +518,121 @@ int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr) {
     }
     // 将 MAC 地址拷贝到输出参数中
     memcpy(mac_addr, temp_mac, 6);
+    return 0;
+}
+
+int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data) {
+    if (ip == NULL || data == NULL) {
+        printf("Invalid input: ip or data is NULL.\n");
+        return -1;
+    }
+
+    // 创建一个 TCP 套接字
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("Failed to create socket.\n");
+        return -1;
+    }
+
+    // 设置服务器地址
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+
+    // 将 IP 地址转换为网络字节序
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+        perror("IP address conversion failed.\n");
+        closesocket(sockfd);
+        return -1;
+    }
+
+    // 连接到服务器
+    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Failed to connect to server.\n");
+        closesocket(sockfd);
+        return -1;
+    }
+
+    // 发送数据
+    int ret = send(sockfd, data, strlen(data), 0);
+    if (ret < 0) {
+        perror("Failed to send data.\n");
+        closesocket(sockfd);
+        return -1;
+    }
+
+    // 关闭套接字
+    closesocket(sockfd);
+    return 0;
+}
+
+int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffer_len, char *client_ip) {
+    if (ip == NULL || buffer == NULL || buffer_len <= 0) {
+        printf("Invalid input: ip, buffer or buffer_len is invalid.\n");
+        return -1;
+    }
+
+    // 创建一个 TCP 套接字
+    int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock < 0) {
+        perror("Failed to create socket.\n");
+        return -1;
+    }
+
+    // 设置服务器地址
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+
+    // 将 IP 地址转换为网络字节序
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+        perror("IP address conversion failed.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    // 绑定地址和端口
+    if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr))) {
+        perror("Failed to bind socket.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    // 开始监听连接请求
+    if (listen(listen_sock, 8) < 0) {
+        perror("Failed to listen on socket.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_sock = accept(listen_sock, (struct sockaddr *)&client_addr, &client_addr_len);
+    if (client_sock < 0) {
+        perror("Failed to accept connection.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    // 接收数据
+    int ret = recv(client_sock, buffer, buffer_len - 1, 0);
+    if (ret < 0) {
+        perror("Failed to receive data.\n");
+        closesocket(client_sock);
+        closesocket(listen_sock);
+        return -1;
+    }
+    buffer[ret] = '\0';  // 确保字符串以 NULL 结尾
+
+    // 获取客户端 IP 地址
+    if (client_ip != NULL) {
+        inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
+    }
+
+    // 关闭套接字
+    closesocket(client_sock);
+    closesocket(listen_sock);
     return 0;
 }
