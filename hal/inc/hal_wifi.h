@@ -99,7 +99,7 @@ int HAL_WiFi_STA_Disable(void);
  * @param config 包含AP模式的配置参数（SSID、密码、信道等）
  * @return 0 表示成功，非 0 表示失败
  */
-int HAL_WiFi_AP_Enable(WiFiAPConfig *config);
+int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level);
 
 /**
  * @brief 关闭Wi-Fi AP模式

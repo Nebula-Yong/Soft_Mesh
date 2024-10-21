@@ -391,7 +391,7 @@ int HAL_WiFi_Disconnect(void)
     }
 }
 
-int HAL_WiFi_AP_Enable(WiFiAPConfig *config) {
+int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
     if (config == NULL) {
         perror("Invalid input: config is NULL.\n");
         return -1;
@@ -405,9 +405,9 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config) {
     ip4_addr_t st_gw, st_ipaddr, st_netmask;
 
     // 设置SoftAp的IP地址，子网掩码和网关
-    IP4_ADDR(&st_ipaddr, 192, 168, 43, 1);  // IP地址：192.168.43.1
+    IP4_ADDR(&st_ipaddr, 192, 168, 43, tree_level);  // IP地址：192.168.43.X
     IP4_ADDR(&st_netmask, 255, 255, 255, 0); // 子网掩码：255.255.255.0
-    IP4_ADDR(&st_gw, 192, 168, 43, 1);      // 网关：192.168.43.2
+    IP4_ADDR(&st_gw, 192, 168, 43, 1);      // 网关：192.168.43.1
 
     // 基本SoftAp配置
     strncpy((char *)hapd_conf.ssid, (const char *)config->ssid, sizeof(hapd_conf.ssid) - 1);

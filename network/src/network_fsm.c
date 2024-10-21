@@ -285,7 +285,7 @@ NetworkState state_open_ap(void) {
     ap_config.channel = 6;  // ws63开发板不会生效，设置为0好像会自动筛选一个信道开启，
     ap_config.security = DEFAULT_WIRELESS_SECURITY;
     ap_config.type = DEFAULT_WIRELESS_TYPE;
-    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config) != 0) {
+    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config, g_mesh_config.tree_level + 1) != 0) {
         LOG("Failed to start AP mode.\n");
         return STATE_TERMINATE;
     } else {
@@ -385,7 +385,7 @@ NetworkState state_create_root(void) {
     ap_config.channel = 6;  // ws63开发板不会生效，设置为0好像会自动筛选一个信道开启，
     ap_config.security = DEFAULT_WIRELESS_SECURITY;
     ap_config.type = DEFAULT_WIRELESS_TYPE;
-    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config) != 0) {
+    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config, 0) != 0) {
         LOG("Failed to start AP mode.\n");
         return STATE_TERMINATE;
     } else {

@@ -130,7 +130,7 @@ int HAL_Wireless_Stop(WirelessType type)
  * @param config AP模式的配置参数（SSID、密码、信道等）
  * @return 0 表示成功，非 0 表示失败
  */
-int HAL_Wireless_EnableAP(WirelessType type, const WirelessAPConfig *config)
+int HAL_Wireless_EnableAP(WirelessType type, const WirelessAPConfig *config, int tree_level)
 {
     int ret = -1;
     switch (type) {
@@ -140,7 +140,7 @@ int HAL_Wireless_EnableAP(WirelessType type, const WirelessAPConfig *config)
             strncpy(wifi_config.password, config->password, sizeof(wifi_config.password) - 1);
             wifi_config.channel = config->channel;
             wifi_config.security = config->security;  // 设置Wi-Fi安全类型
-            ret = HAL_WiFi_AP_Enable(&wifi_config);   // 启动Wi-Fi AP模式
+            ret = HAL_WiFi_AP_Enable(&wifi_config, tree_level);   // 启动Wi-Fi AP模式
             break;
         }
         case WIRELESS_TYPE_BLUETOOTH:

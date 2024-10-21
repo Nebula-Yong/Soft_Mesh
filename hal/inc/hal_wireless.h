@@ -87,7 +87,7 @@ int HAL_Wireless_Stop(WirelessType type);
  * @param config AP模式的配置参数（SSID、密码、信道等）
  * @return 0 表示成功，非 0 表示失败
  */
-int HAL_Wireless_EnableAP(WirelessType type, const WirelessAPConfig *config);
+int HAL_Wireless_EnableAP(WirelessType type, const WirelessAPConfig *config, int tree_level);
 
 /**
  * @brief 停止指定类型的无线通信模块的AP模式，如关闭Wi-Fi AP模式、关闭蓝牙广播等。
