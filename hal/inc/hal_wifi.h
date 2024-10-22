@@ -70,6 +70,18 @@ typedef struct {
     uint32_t best_rate;                     /*!< 最佳发送速率 (kbps) */
 } WiFiSTAInfo;
 
+// 维护MAC与IP的绑定表
+typedef struct {
+    char mac[7];  // MAC地址
+    char ip[16];   // IP地址
+} MAC_IP_Binding;
+
+// 链表节点
+typedef struct MAC_IP_Node {
+    MAC_IP_Binding binding;      // MAC-IP绑定信息
+    struct MAC_IP_Node *next;    // 指向下一个节点的指针
+} MAC_IP_Node;
+
 /**
  * @brief 初始化Wi-Fi硬件及相关资源
  * @return 0 表示成功，非 0 表示失败
@@ -178,6 +190,20 @@ int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffe
  * @return 0表示成功，其他表示失败
  */
 int HAL_WiFi_GetAPConfig(WiFiAPConfig *config);
+
+/**
+ * @brief 创建TCP服务端用于绑定MAC和IP地址
+ */
+void HAL_WiFi_CreateIPMACBindingServer(void);
+
+/**
+ * @brief 获取节点的MAC地址，AP MAC地址的后三位
+ * @param[out] mac 存储MAC地址的缓冲区，至少需要7字节
+ * @return 0 表示成功，非 0 表示失败
+ * @note 6字节的MAC地址，最后一位为'\0'，共7字节
+ */
+int HAL_WiFi_GetNodeMAC(char *mac);
+
 
 #ifdef __cplusplus
 }

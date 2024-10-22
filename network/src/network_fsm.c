@@ -297,7 +297,7 @@ NetworkState state_open_ap(void) {
 // 检查根节点冲突状态处理函数
 NetworkState state_check_root_conflict(void) {
     uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 100);
-    printf("flag:%d", flags);
+    LOG("flag:0x%08X\n", flags);
     if (flags & WIRELESS_CONNECT_BIT || flags == osFlagsErrorTimeout) {
         LOG("Wi-Fi connected or nothing happen.\n");
         // 成功连接后，继续扫描是否存在其他的mesh网络，如果mesh网络的mac比自己的mac大，则加入该网络

@@ -17,6 +17,7 @@
 #include "lwip/etharp.h"
 //socket相关库文件
 #include "lwip/sockets.h"
+#include <sys/time.h>
 
 
 // 定义宏，用于自动传递 __FILE__, __func__, __LINE__ 给打印函数
@@ -34,6 +35,10 @@ extern osEventFlagsId_t wireless_event_flags;
 
 static td_void wifi_scan_state_changed(td_s32 state, td_s32 size);
 static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru *info, td_s32 reason_code);
+
+void remove_mac_ip_binding(const char *mac);
+void delete_mac_ip_list(void);
+
 static char g_sta_ip[16] = {0};  // 保存 STA 模式的 IP 地址
 
 wifi_event_stru wifi_event_cb = {
@@ -56,6 +61,15 @@ void CreateWirelessEventFlags(void) {
 }
 
 static td_u8 g_wifi_state = WIFI_STA_SAMPLE_INIT;
+
+// 链表的头节点（全局变量，初始化为空）
+MAC_IP_Node *head = NULL;
+uint32_t len_mac_ip_list = 0;
+
+// 用于控制服务器是否继续运行的全局标志
+volatile bool server_running = true;
+
+osThreadId_t IP_MAC_thread_id;
 
 /*****************************************************************************
   STA 扫描事件回调函数
@@ -352,6 +366,27 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
 
     // 存储获取到的 IP 地址
     store_ip(netif_p);
+    int ssid_len = strlen(wifi_config->ssid);
+    char tree_level_char = wifi_config->ssid[ssid_len - 1];
+    int tree_level = 0;
+    if (isdigit(tree_level_char)) {
+        tree_level =  tree_level_char - '0';
+    } else if (tree_level_char >= 'A' && tree_level_char <= 'Z') {
+        tree_level = tree_level_char - 'A' + 10;
+    } else if (tree_level_char >= 'a' && tree_level_char <= 'z') {
+        tree_level = tree_level_char - 'a' + 36;
+    }
+    char ip[16];
+    snprintf(ip, sizeof(ip), "192.168.43.%d", tree_level);
+    char mac[7];
+    HAL_WiFi_GetNodeMAC(mac);
+    if(HAL_WiFi_Send_data(ip, 9000, mac) != 0)
+    {
+        perror("send data fail.\r\n");
+        return -1;
+    }else{
+        printf("send data success.\r\n");
+    }
     return 0;  
 }
 
@@ -461,6 +496,14 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
         return -1;
     }
 
+    // 创建线程启动MAC地址绑定表
+    server_running = true;
+    IP_MAC_thread_id = osThreadNew((osThreadFunc_t)HAL_WiFi_CreateIPMACBindingServer, NULL, NULL);
+    if (IP_MAC_thread_id == NULL) {
+        perror("Failed to create MAC-IP binding table thread.\n");
+        return -1;
+    }
+
     printf("SoftAP started successfully with SSID: %s\n", config->ssid);
     return 0;
 }
@@ -471,6 +514,10 @@ int HAL_WiFi_AP_Disable(void) {
         perror("Failed to disable SoftAP mode.\n");
         return -1;
     }
+    server_running = false;
+    delete_mac_ip_list();
+    osDelay(200); // 等待2s，确保函数执行完成，释放掉socket资源
+    osThreadTerminate(IP_MAC_thread_id);
 
     perror("SoftAP mode disabled.\n");
     return 0;
@@ -518,6 +565,22 @@ int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr) {
     }
     // 将 MAC 地址拷贝到输出参数中
     memcpy(mac_addr, temp_mac, 6);
+    return 0;
+}
+
+int HAL_WiFi_GetNodeMAC(char *mac){
+    if (mac == NULL) {
+        printf("Invalid input: mac is NULL.\n");
+        return -1;
+    }
+    // 获取节点的 MAC 地址
+    uint8_t ap_mac[6];
+    memset(ap_mac, 0, sizeof(ap_mac));
+    HAL_WiFi_GetAPMacAddress(ap_mac);
+    // 将mac后三位转换为字符写入g_mesh_config.root_mac
+    char temp_mac[7];
+    snprintf(temp_mac, sizeof(temp_mac), "%02X%02X%02X", ap_mac[3], ap_mac[4], ap_mac[5]);
+    memcpy(mac, temp_mac, 7);
     return 0;
 }
 
@@ -657,4 +720,213 @@ int HAL_WiFi_GetAPConfig(WiFiAPConfig *config) {
     config->security = (WiFiSecurityType)ap_config.wifi_psk_type;
 
     return 0;
+}
+
+void add_mac_ip_binding(const char *mac, const char *ip) {
+    // 创建新的节点
+    MAC_IP_Node *new_node = (MAC_IP_Node *)malloc(sizeof(MAC_IP_Node));
+    if (new_node == NULL) {
+        printf("Memory allocation failed!\n");
+        return;
+    }
+
+    // 初始化节点数据
+    strncpy(new_node->binding.mac, mac, sizeof(new_node->binding.mac) - 1);
+    strncpy(new_node->binding.ip, ip, sizeof(new_node->binding.ip) - 1);
+    new_node->next = NULL;
+
+    // 插入到链表的开头（头插法）
+    new_node->next = head;
+    head = new_node;
+
+    printf("Added MAC: %s, IP: %s\n", mac, ip);
+    len_mac_ip_list++;
+}
+
+void remove_mac_ip_binding(const char *mac) {
+    MAC_IP_Node *current = head;
+    MAC_IP_Node *previous = NULL;
+
+    // 遍历链表寻找要删除的节点
+    while (current != NULL) {
+        if (strncmp(current->binding.mac, mac, sizeof(current->binding.mac)) == 0) {
+            // 找到匹配的节点
+            if (previous == NULL) {
+                // 如果要删除的是头节点
+                head = current->next;
+            } else {
+                // 不是头节点，将前一个节点指向当前节点的下一个节点
+                previous->next = current->next;
+            }
+
+            // 释放节点的内存
+            free(current);
+            printf("Removed MAC: %s\n", mac);
+            return;
+        }
+
+        // 继续遍历链表
+        previous = current;
+        current = current->next;
+    }
+
+    printf("MAC: %s not found.\n", mac);
+    len_mac_ip_list--;
+}
+
+void print_mac_ip_bindings(void) {
+    MAC_IP_Node *current = head;
+
+    printf("Current MAC-IP Bindings:\n");
+    while (current != NULL) {
+        printf("MAC: %s, IP: %s\n", current->binding.mac, current->binding.ip);
+        current = current->next;
+    }
+}
+
+void delete_mac_ip_list(void) {
+    MAC_IP_Node *current = head;
+    MAC_IP_Node *next_node;
+
+    while (current != NULL) {
+        next_node = current->next;  // 保存下一个节点
+        free(current);              // 释放当前节点
+        current = next_node;        // 移动到下一个节点
+    }
+
+    head = NULL;  // 头指针置空，链表删除完成
+    printf("All MAC-IP bindings have been deleted.\n");
+    len_mac_ip_list = 0;
+}
+
+void get_last_three_mac(char *mac, const uint8_t *full_mac) {
+    if (mac == NULL || full_mac == NULL) {
+        return;
+    }
+    // 将mac后三位转换为字符写入g_mesh_config.root_mac
+    snprintf(mac, 7, "%02X%02X%02X", full_mac[3], full_mac[4] + 2, full_mac[5]);
+    return;
+}
+
+void delete_leave_sta_mac_ip_list(WiFiSTAInfo *sta_info, uint32_t sta_num) {
+    MAC_IP_Node *current = head;
+    MAC_IP_Node *previous = NULL;
+    WiFiSTAInfo *sta = sta_info;
+    bool found = false;
+
+    while (current != NULL) {
+        found = false;
+        for (uint32_t i = 0; i < sta_num; i++) {
+            char sta_mac[7];
+            get_last_three_mac(sta_mac, sta[i].mac_addr);
+            printf("sta_mac: %s\n", sta_mac);
+            if (strncmp(current->binding.mac, sta_mac, 7) == 0) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // 删除离开节点的mac-ip绑定
+            if (previous == NULL) {
+                // 如果要删除的是头节点
+                head = current->next;
+            } else {
+                // 不是头节点，将前一个节点指向当前节点的下一个节点
+                previous->next = current->next;
+            }
+
+            // 释放节点的内存
+            free(current);
+            len_mac_ip_list--;
+        } else {
+            previous = current;
+        }
+        current = current->next;
+    }
+}
+
+void HAL_WiFi_CreateIPMACBindingServer(void) {
+    // 创建一个 TCP 套接字
+    int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock < 0) {
+        perror("Failed to create socket.\n");
+        return;
+    }
+
+    // 设置 SO_REUSEADDR 套接字选项，允许端口复用
+    int optval = 1;
+    if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        perror("Failed to set socket options.\n");
+        closesocket(listen_sock);
+        return;
+    }
+
+    // 设置服务器地址
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(9000);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    // 绑定地址和端口
+    if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Failed to bind socket.\n");
+        closesocket(listen_sock);
+        return;
+    }
+
+    // 开始监听连接请求
+    if (listen(listen_sock, 8) < 0) {
+        perror("Failed to listen on socket.\n");
+        closesocket(listen_sock);
+        return;
+    }
+
+    // 设置 accept 的超时时间为1秒
+    struct timeval timeout;
+    timeout.tv_sec = 1;  // 1秒超时
+    timeout.tv_usec = 0;
+    setsockopt(listen_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+
+    printf("Server is listening on port 9000...\n");
+    char mac[7];
+    char ip[16];
+    while (server_running) {  // 使用全局标志控制循环
+        print_mac_ip_bindings();
+        WiFiSTAInfo sta_info[8];
+        uint32_t sta_num = 8;
+        HAL_WiFi_GetConnectedSTAInfo(sta_info, &sta_num);
+        if (sta_num < len_mac_ip_list) {
+            // 删除离开节点的mac-ip绑定
+            // 此处由于硬件原因，实际测试发现即使设备离开也会保留在sta_info中，等待硬件SDK修复
+            delete_leave_sta_mac_ip_list(sta_info, sta_num);
+        }
+        // 接受连接请求
+        struct sockaddr_in client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int client_sock = accept(listen_sock, (struct sockaddr *)&client_addr, &client_addr_len);
+        if (client_sock < 0) {
+            continue;
+        }else{
+            // 接收数据
+            char buffer[128];
+            int ret = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
+            if (ret < 0 || ret > 7) {
+                // 超时或数据长度不符合要求
+                closesocket(client_sock);
+                continue;
+            }
+            buffer[ret] = '\0';  // 确保字符串以 NULL 结尾
+            strcpy(mac, buffer);
+            inet_ntop(AF_INET, &client_addr.sin_addr, ip, INET_ADDRSTRLEN);
+            add_mac_ip_binding(mac, ip);
+            printf("Received data: %s\n", buffer);
+        }
+        closesocket(client_sock);
+    }
+
+    // 关闭监听套接字
+    closesocket(listen_sock);
+    printf("Server stopped.\n");
 }
