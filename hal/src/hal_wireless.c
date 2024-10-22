@@ -364,3 +364,43 @@ int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac)
     }
     return ret;
 }
+
+/**
+ * @brief 通过无线通信模块发送数据
+ * @param type 指定无线通信类型。
+ * @param MAC 目标设备的MAC地址
+ * @param data 要发送的字符串数据
+ * @param tree_level 父节点的树级, 非负整数表示向上传输数据到父节点，负整数表示向下传输数据到子节点
+ * @return 0 表示成功，非 0 表示失败
+ * @note 当向上传递时，MAC地址为空字符串，当向下传递时，MAC地址为目标设备的MAC地址
+ * @note 该接口仅支持Wi-Fi通信类型
+ * @note 该接口仅支持发送TCP数据
+ * 
+ */
+int HAL_Wireless_SendData(WirelessType type, const char *MAC, const char *data, int tree_level) {
+    int ret = -1;
+    char ip[16];
+    memcmp(MAC, ip, sizeof(ip));
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            if(tree_level >= 0) {
+                snprintf(ip, sizeof(ip), "192.168.43.%d", tree_level);
+                ret = HAL_WiFi_Send_data(ip, 8080, data);  // 发送Wi-Fi数据
+            }else{
+                printf("Sending data to parent node not implemented.\n");
+            }
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_SendData(MAC, data);
+            printf("Bluetooth data send not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_SendData(MAC, data);
+            printf("nearlink data send not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}
