@@ -120,6 +120,15 @@ void sta_sample_task(void *param)
         printf("Received data: %s from client: %s\n", buffer, client_ip);
     }
 
+    // 获取AP模式的配置信息
+    WiFiAPConfig get_config;
+    if (HAL_WiFi_GetAPConfig(&get_config) == 0) {
+        printf("AP mode config: SSID: %s, Password: %s, Channel: %d, Security: %d\n",
+               get_config.ssid, get_config.password, get_config.channel, get_config.security);
+    } else {
+        printf("Failed to get AP mode config.\n");
+    }
+
     // 循环读取连接到AP的STA设备信息
     WiFiSTAInfo sta_info[8];
     uint32_t sta_num = 8;

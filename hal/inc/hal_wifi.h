@@ -172,6 +172,13 @@ int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data);
  */
 int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffer_len, char *client_ip);
 
+/**
+ * @brief 获取AP的配置信息
+ * @param[out] config 存储AP配置信息的结构体
+ * @return 0表示成功，其他表示失败
+ */
+int HAL_WiFi_GetAPConfig(WiFiAPConfig *config);
+
 #ifdef __cplusplus
 }
 #endif

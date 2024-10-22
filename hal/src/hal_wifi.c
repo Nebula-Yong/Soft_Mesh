@@ -636,3 +636,25 @@ int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffe
     closesocket(listen_sock);
     return 0;
 }
+
+int HAL_WiFi_GetAPConfig(WiFiAPConfig *config) {
+    if (config == NULL) {
+        perror("Invalid input: config is NULL.\n");
+        return -1;
+    }
+
+    // 获取 SoftAP 配置
+    softap_config_stru ap_config;
+    if (wifi_get_softap_config(&ap_config) != 0) {
+        perror("Failed to get SoftAP configuration.\n");
+        return -1;
+    }
+
+    // 将 SoftAP 配置拷贝到输出参数中
+    strncpy(config->ssid, (char *)ap_config.ssid, sizeof(config->ssid) - 1);
+    strncpy(config->password, (char *)ap_config.pre_shared_key, sizeof(config->password) - 1);
+    config->channel = ap_config.channel_num;
+    config->security = (WiFiSecurityType)ap_config.wifi_psk_type;
+
+    return 0;
+}
