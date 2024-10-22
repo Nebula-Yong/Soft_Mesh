@@ -930,3 +930,49 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
     closesocket(listen_sock);
     printf("Server stopped.\n");
 }
+
+int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data) {
+    if (MAC == NULL || data == NULL) {
+        printf("Invalid input: MAC or data is NULL.\n");
+        return -1;
+    }
+
+    // 查找 MAC 对应的 IP 地址
+    MAC_IP_Node *current = head;
+    char ip[16];
+    while (current != NULL) {
+        if (strncmp(current->binding.mac, MAC, 7) == 0) {
+            strncpy(ip, current->binding.ip, sizeof(ip) - 1);
+            break;
+        }
+        current = current->next;
+    }
+
+    if (current == NULL) {
+        perror("MAC: %s not found.\n", MAC);
+        return -1;
+    }
+    if(HAL_WiFi_Send_data(ip, 9001, data) != 0){
+    
+        perror("send data fail.\r\n");
+        return -2;
+    }
+    
+    return 0;
+}
+
+int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level) {
+    if (data == NULL) {
+        printf("Invalid input: data is NULL.\n");
+        return -1;
+    }
+
+    char ip[16];
+    snprintf(ip, sizeof(ip), "192.168.43.%d", tree_level);
+
+    if(HAL_WiFi_Send_data(ip, 9001, data) != 0){
+        perror("send data fail.\r\n");
+        return -1;
+    }
+    return 0;
+}

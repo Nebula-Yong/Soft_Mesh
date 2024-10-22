@@ -204,6 +204,21 @@ void HAL_WiFi_CreateIPMACBindingServer(void);
  */
 int HAL_WiFi_GetNodeMAC(char *mac);
 
+/**
+ * @brief 想指定的MAC地址发送数据
+ * @param MAC 目标设备的MAC地址
+ * @param data 要发送的字符串数据
+ */
+int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data);
+
+/**
+ * @brief 通过Wi-Fi发送数据给父节点
+ * @param data 要发送的字符串数据
+ * @param tree_level 父节点所在树的层数
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level);
+
 
 #ifdef __cplusplus
 }

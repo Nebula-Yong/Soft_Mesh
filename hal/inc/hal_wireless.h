@@ -147,18 +147,26 @@ int HAL_Wireless_GetConnectedDeviceInfo(WirelessType type, WirelessConnectedInfo
 int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac);
 
 /**
- * @brief 通过无线通信模块发送数据
+ * @brief 通过无线通信模块发送数据给子节点
  * @param type 指定无线通信类型。
  * @param MAC 目标设备的MAC地址
  * @param data 要发送的字符串数据
- * @param tree_level 父节点的树级, 非负整数表示向上传输数据到父节点，负整数表示向下传输数据到子节点
  * @return 0 表示成功，非 0 表示失败
  * @note 当向上传递时，MAC地址为空字符串，当向下传递时，MAC地址为目标设备的MAC地址
  * @note 该接口仅支持Wi-Fi通信类型
  * @note 该接口仅支持发送TCP数据
  * 
  */
-int HAL_Wireless_SendData(WirelessType type, const char *MAC, const char *data, int tree_level);
+int HAL_Wireless_SendData_to_child(WirelessType type, const char *MAC, const char *data);
+
+/**
+ * @brief 通过无线通信模块发送数据给父节点
+ * @param type 指定无线通信类型。
+ * @param data 要发送的字符串数据
+ * @param tree_level 父节点所在树的层数
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_SendData_to_parent(WirelessType type, const char *data, int tree_level);
 
 /**
  * @brief 通过无线通信模块接收数据
