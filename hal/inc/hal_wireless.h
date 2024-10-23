@@ -179,6 +179,32 @@ int HAL_Wireless_SendData_to_parent(WirelessType type, const char *data, int tre
  */
 int HAL_Wireless_ReceiveData(WirelessType type, char *buffer, int buffer_len);
 
+/**
+ * @brief 创建无线接收服务器
+ * @param type 指定无线通信类型。
+ * @return 返回服务器资源描述符，或 < 0 表示失败
+ */
+int HAL_Wireless_CreateServer(WirelessType type);
+
+/**
+ * @brief 关闭无线接收服务器
+ * @param type 指定无线通信类型。
+ * @param server_fd 服务器资源描述符
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_CloseServer(WirelessType type, int server_fd);
+
+/**
+ * @brief 通过无线通信模块接收数据
+ * @param type 指定无线通信类型。
+ * @param server_fd 服务器资源描述符
+ * @param[out] mac 存储发送数据的设备的MAC地址
+ * @param[out] buffer 存储接收数据的缓冲区
+ * @param buffer_len 缓冲区的大小
+ * @return 接收到的数据长度，或 < 0 表示失败
+ */
+int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *mac, char *buffer, int buffer_len);
+
 
 #ifdef __cplusplus
 }

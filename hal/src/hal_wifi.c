@@ -774,6 +774,25 @@ void remove_mac_ip_binding(const char *mac) {
     len_mac_ip_list--;
 }
 
+int find_mac_from_ip(const char *ip, char *mac) {
+    MAC_IP_Node *current = head;
+
+    // 遍历链表寻找匹配的 IP 地址
+    while (current != NULL) {
+        if (strncmp(current->binding.ip, ip, sizeof(current->binding.ip)) == 0) {
+            // 找到匹配的 IP 地址
+            strncpy(mac, current->binding.mac, sizeof(current->binding.mac) - 1);
+            return 0;
+        }
+
+        // 继续遍历链表
+        current = current->next;
+    }
+
+    // 没有找到匹配的 IP 地址
+    return -1;
+}
+
 void print_mac_ip_bindings(void) {
     MAC_IP_Node *current = head;
 
@@ -974,5 +993,92 @@ int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level) {
         perror("send data fail.\r\n");
         return -1;
     }
+    return 0;
+}
+
+int HAL_WiFi_Create_Server(uint16_t port) {
+    // 创建一个 TCP 套接字
+    int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock < 0) {
+        perror("Failed to create socket.\n");
+        return -1;
+    }
+
+    // 设置 SO_REUSEADDR 套接字选项，允许端口复用
+    int optval = 1;
+    if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        perror("Failed to set socket options.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    // 设置服务器地址
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    // 绑定地址和端口
+    if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Failed to bind socket.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    // 开始监听连接请求
+    if (listen(listen_sock, 8) < 0) {
+        perror("Failed to listen on socket.\n");
+        closesocket(listen_sock);
+        return -1;
+    }
+
+    return listen_sock;
+}
+
+int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_len) {
+    if (server_fd < 0 || buffer == NULL || buffer_len <= 0) {
+        printf("Invalid input: server_fd, buffer or buffer_len is invalid.\n");
+        return -1;
+    }
+
+    // 接受连接请求
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_sock = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+    if (client_sock < 0) {
+        perror("Failed to accept connection.\n");
+        return -1;
+    }
+
+    // 接收数据
+    int ret = recv(client_sock, buffer, buffer_len - 1, 0);
+    if (ret < 0) {
+        perror("Failed to receive data.\n");
+        closesocket(client_sock);
+        return -1;
+    }
+    buffer[ret] = '\0';  // 确保字符串以 NULL 结尾
+
+    // 获取客户端 ip 地址
+    char ip[16];
+    inet_ntop(AF_INET, &client_addr.sin_addr, ip, INET_ADDRSTRLEN);
+
+    // 查找 MAC 对应的 IP 地址
+    find_mac_from_ip(ip, mac);
+
+    // 关闭客户端套接字
+    closesocket(client_sock);
+    return ret;
+}
+
+int HAL_WiFi_Close_Server(int server_fd) {
+    if (server_fd < 0) {
+        printf("Invalid input: server_fd is invalid.\n");
+        return -1;
+    }
+
+    // 关闭监听套接字
+    closesocket(server_fd);
     return 0;
 }

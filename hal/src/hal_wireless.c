@@ -437,3 +437,101 @@ int HAL_Wireless_SendData_to_parent(WirelessType type, const char *data, int tre
     }
     return ret;
 }
+
+/**
+ * @brief 创建无线接收服务器
+ * @param type 指定无线通信类型。
+ * @return 返回服务器资源描述符，或 < 0 表示失败
+ */
+int HAL_Wireless_CreateServer(WirelessType type) {
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_Create_Server(9001);
+            if(ret >= 0) {
+                printf("Wi-Fi server created successfully.\n");
+            } else {
+                printf("Failed to create Wi-Fi server.\n");
+            }
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_CreateServer(8080);
+            printf("Bluetooth server creation not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_CreateServer(8080);
+            printf("nearlink server creation not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}
+
+/**
+ * @brief 关闭无线接收服务器
+ * @param type 指定无线通信类型。
+ * @param server_fd 服务器资源描述符
+ * @return 0 表示成功，非 0 表示失败
+ */
+int HAL_Wireless_CloseServer(WirelessType type, int server_fd) {
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_Close_Server(server_fd);
+            if(ret == 0) {
+                printf("Wi-Fi server closed successfully.\n");
+            } else {
+                printf("Failed to close Wi-Fi server.\n");
+            }
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_CloseServer(server_fd);
+            printf("Bluetooth server close not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_CloseServer(server_fd);
+            printf("nearlink server close not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}
+
+/**
+ * @brief 通过无线通信模块接收数据
+ * @param type 指定无线通信类型。
+ * @param server_fd 服务器资源描述符
+ * @param[out] mac 存储发送数据的设备的MAC地址
+ * @param[out] buffer 存储接收数据的缓冲区
+ * @param buffer_len 缓冲区的大小
+ * @return 接收到的数据长度，或 < 0 表示失败
+ */
+int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *mac, char *buffer, int buffer_len) {
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_Server_Receive(server_fd, mac, buffer, buffer_len);
+            if(ret >= 0) {
+                printf("Data received from client %s: %s\n", mac, buffer);
+            } else {
+                printf("Failed to receive data from client.\n");
+            }
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_ReceiveDataFromClient(server_fd, mac, buffer, buffer_len);
+            printf("Bluetooth data receive from client not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_ReceiveDataFromClient(server_fd, mac, buffer, buffer_len);
+            printf("nearlink data receive from client not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}

@@ -219,6 +219,32 @@ int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data);
  */
 int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level);
 
+/**
+ * @brief 创建socket TCP服务端
+ * @param port 服务端端口
+ * @return 返回socket描述符
+ * @note 返回值小于0表示失败
+ */
+int HAL_WiFi_Create_Server(uint16_t port);
+
+/**
+ * @brief 关闭socket TCP服务端
+ * @param server_fd 服务端socket描述符
+ * @return 0表示成功，其他表示失败
+ * @note 关闭服务端后，服务端socket描述符将被置为-1
+ */
+int HAL_WiFi_Close_Server(int server_fd);
+
+/**
+ * @brief 接收TCP客户端的连接和数据
+ * @param server_fd 服务端socket描述符
+ * @param[out] mac 存储MAC地址的缓冲区，至少需要7字节
+ * @param[out] buffer 存储接收数据的缓冲区
+ * @param buffer_len 缓冲区的长度
+ * @return 接收到的数据长度，或 < 0 表示失败
+ */
+int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_len);
+
 
 #ifdef __cplusplus
 }
