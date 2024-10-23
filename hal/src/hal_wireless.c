@@ -517,8 +517,6 @@ int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *m
             ret = HAL_WiFi_Server_Receive(server_fd, mac, buffer, buffer_len);
             if(ret >= 0) {
                 printf("Data received from client %s: %s\n", mac, buffer);
-            } else {
-                printf("Failed to receive data from client.\n");
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:

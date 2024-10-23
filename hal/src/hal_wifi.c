@@ -731,15 +731,15 @@ void add_mac_ip_binding(const char *mac, const char *ip) {
     }
 
     // 初始化节点数据
-    strncpy(new_node->binding.mac, mac, sizeof(new_node->binding.mac) - 1);
-    strncpy(new_node->binding.ip, ip, sizeof(new_node->binding.ip) - 1);
+    strcpy(new_node->binding.mac, mac);
+    strcpy(new_node->binding.ip, ip);
     new_node->next = NULL;
 
     // 插入到链表的开头（头插法）
     new_node->next = head;
     head = new_node;
 
-    printf("Added MAC: %s, IP: %s\n", mac, ip);
+    printf("Added MAC: %s, IP: %s\n", new_node->binding.mac, new_node->binding.ip);
     len_mac_ip_list++;
 }
 
@@ -913,14 +913,14 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
     char ip[16];
     while (server_running) {  // 使用全局标志控制循环
         print_mac_ip_bindings();
-        WiFiSTAInfo sta_info[8];
-        uint32_t sta_num = 8;
-        HAL_WiFi_GetConnectedSTAInfo(sta_info, &sta_num);
-        if (sta_num < len_mac_ip_list) {
-            // 删除离开节点的mac-ip绑定
-            // 此处由于硬件原因，实际测试发现即使设备离开也会保留在sta_info中，等待硬件SDK修复
-            delete_leave_sta_mac_ip_list(sta_info, sta_num);
-        }
+        // WiFiSTAInfo sta_info[8];
+        // uint32_t sta_num = 8;
+        // HAL_WiFi_GetConnectedSTAInfo(sta_info, &sta_num);
+        // if (sta_num < len_mac_ip_list) {
+        //     // 删除离开节点的mac-ip绑定
+        //     // 此处由于硬件原因，实际测试发现即使设备离开也会保留在sta_info中，等待硬件SDK修复
+        //     delete_leave_sta_mac_ip_list(sta_info, sta_num);
+        // }
         // 接受连接请求
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
@@ -929,7 +929,7 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
             continue;
         }else{
             // 接收数据
-            char buffer[128];
+            char buffer[10];
             int ret = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
             if (ret < 0 || ret > 7) {
                 // 超时或数据长度不符合要求
@@ -1033,6 +1033,12 @@ int HAL_WiFi_Create_Server(uint16_t port) {
         return -1;
     }
 
+    // 设置 accept 的超时时间为1秒
+    struct timeval timeout;
+    timeout.tv_sec = 1;  // 1秒超时
+    timeout.tv_usec = 0;
+    setsockopt(listen_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+
     return listen_sock;
 }
 
@@ -1047,7 +1053,6 @@ int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_l
     socklen_t client_addr_len = sizeof(client_addr);
     int client_sock = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
     if (client_sock < 0) {
-        perror("Failed to accept connection.\n");
         return -1;
     }
 

@@ -3,7 +3,7 @@
 #include "app_init.h"
 #include "network_fsm.h"
 
-#define NETWORK_TASK_STACK_SIZE 0x1000  // 定义任务栈大小
+#define NETWORK_TASK_STACK_SIZE 0x1500  // 定义任务栈大小
 #define NETWORK_TASK_PRIO       (osPriority_t)(13)  // 定义任务优先级
 
 void network_task(void *argument) {

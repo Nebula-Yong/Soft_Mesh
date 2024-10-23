@@ -7,9 +7,16 @@
 #include <ctype.h>
 #include "cmsis_os2.h"
 
-extern osEventFlagsId_t wireless_event_flags;  // wifi连接事件标志对象
+// wifi连接事件标志对象
+extern osEventFlagsId_t wireless_event_flags;  
 #define WIRELESS_CONNECT_BIT    (1 << 0)
 #define WIRELESS_DISCONNECT_BIT (1 << 1)
+
+// 路由传输层开启标志位
+osEventFlagsId_t route_transport_event_flags;
+
+#define ROUTE_TRANSPORT_START_BIT (1 << 0)
+#define ROUTE_TRANSPORT_STOP_BIT  (1 << 1)
 
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
@@ -52,6 +59,10 @@ int network_fsm_init(const MeshNetworkConfig *config) {
     {
         LOG("MeshNetworkConfig is NULL!\n");
         return -1;
+    }
+    route_transport_event_flags = osEventFlagsNew(NULL);  // 使用默认属性创建事件标志
+    if (route_transport_event_flags == NULL) {
+        LOG("Failed to create Wi-Fi event flags.\r\n");
     }
     // 设置初始状态为 STATE_STARTUP
     current_state = STATE_STARTUP;
@@ -290,6 +301,7 @@ NetworkState state_open_ap(void) {
         return STATE_TERMINATE;
     } else {
         LOG("AP mode started successfully with SSID: %s\n", ap_ssid);
+        osEventFlagsSet(route_transport_event_flags, ROUTE_TRANSPORT_START_BIT);
         return STATE_CHECK_ROOT_CONFLICT;
     }
 }
@@ -344,6 +356,7 @@ NetworkState state_check_root_conflict(void) {
                     sta_config.type = DEFAULT_WIRELESS_TYPE;
                     // 关闭AP模式
                     HAL_Wireless_DisableAP(DEFAULT_WIRELESS_TYPE);
+                    osEventFlagsSet(route_transport_event_flags, ROUTE_TRANSPORT_STOP_BIT);
                     free(scan_results);  // 释放内存
                     return STATE_SCANNING;
                 }
@@ -359,6 +372,7 @@ NetworkState state_check_root_conflict(void) {
         memset(sta_config.bssid, 0, sizeof(sta_config.bssid));           // 清空 bssid
         // 关闭AP模式
         HAL_Wireless_DisableAP(DEFAULT_WIRELESS_TYPE);
+        osEventFlagsSet(route_transport_event_flags, ROUTE_TRANSPORT_STOP_BIT);
         osDelay(100); // 延迟 1s，等待断连的WiFi完全消失
         return STATE_SCANNING;
     }else{
@@ -390,6 +404,7 @@ NetworkState state_create_root(void) {
         return STATE_TERMINATE;
     } else {
         LOG("AP mode started successfully with SSID: %s\n", root_ssid);
+        osEventFlagsSet(route_transport_event_flags, ROUTE_TRANSPORT_START_BIT);
         is_root = true;
     }
     return STATE_CHECK_ROOT_CONFLICT;
