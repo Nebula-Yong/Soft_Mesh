@@ -5,7 +5,6 @@
 #include "app_init.h"
 #include "hal_wireless.h"
 #include "network_fsm.h"
-#include "hal_wifi.h"
 
 extern MeshNetworkConfig g_mesh_config;
 
@@ -192,24 +191,12 @@ void send_route_table_to_parent(void)
     if(HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac) != 0) {
         LOG("Failed to get MAC address.\n");
     }
-    
+
     if (len_mac_list == 0 && g_mesh_config.tree_level != 0) {
         LOG("No child nodes.\n");
         char msg[10];
         sprintf(msg, "0\n1\n%s", my_mac);
-        LOG("my_mac:%s", my_mac);
-        // HAL_WiFi_Send_data("192.168.43.0", 9001, msg);
-        while (1)
-        {
-            osDelay(100);
-            LOG("sending");
-            if(HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, msg, 0) == 0) {
-                LOG("send_route_table_to_parent successful!\n");
-                break;
-            }else{
-                LOG("send_route_table_to_parent fail!! \n");
-            }
-        }
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, msg, g_mesh_config.tree_level - 1);
         return;
     }
 
@@ -291,24 +278,24 @@ void route_transport_task(void)
     return;
 }
 
-// /* 创建任务 */
-// static void route_transport_entry(void)
-// {
-//     osThreadAttr_t attr;
-//     attr.name       = "route_transport_task";
-//     attr.attr_bits  = 0U;
-//     attr.cb_mem     = NULL;
-//     attr.cb_size    = 0U;
-//     attr.stack_mem  = NULL;
-//     attr.stack_size = 0x1000;
-//     attr.priority   = osPriorityLow5;
+/* 创建任务 */
+static void route_transport_entry(void)
+{
+    osThreadAttr_t attr;
+    attr.name       = "route_transport_task";
+    attr.attr_bits  = 0U;
+    attr.cb_mem     = NULL;
+    attr.cb_size    = 0U;
+    attr.stack_mem  = NULL;
+    attr.stack_size = 0x1000;
+    attr.priority   = osPriorityLow4;
 
-//     if (osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr) == NULL) {
-//         LOG("Create route_transport_task failed.\n");
-//     } else {
-//         LOG("Create route_transport_task successfully.\n");
-//     }
-// }
+    if (osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr) == NULL) {
+        LOG("Create route_transport_task failed.\n");
+    } else {
+        LOG("Create route_transport_task successfully.\n");
+    }
+}
 
 /* 启动任务 */
-// app_run(route_transport_entry);
+app_run(route_transport_entry);

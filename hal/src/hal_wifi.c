@@ -377,7 +377,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
         tree_level = tree_level_char - 'a' + 36;
     }
     char ip[16];
-    snprintf(ip, sizeof(ip), "192.168.43.%d", tree_level);
+    snprintf(ip, sizeof(ip), "192.168.%d.1", tree_level);
     char mac[7];
     HAL_WiFi_GetNodeMAC(mac);
     if(HAL_WiFi_Send_data(ip, 9000, mac) != 0)
@@ -442,9 +442,9 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
     ip4_addr_t st_gw, st_ipaddr, st_netmask;
 
     // 设置SoftAp的IP地址，子网掩码和网关
-    IP4_ADDR(&st_ipaddr, 192, 168, 43, tree_level);  // IP地址：192.168.43.X
+    IP4_ADDR(&st_ipaddr, 192, 168, tree_level, 1);  // IP地址：192.168.X.1
     IP4_ADDR(&st_netmask, 255, 255, 255, 0); // 子网掩码：255.255.255.0
-    IP4_ADDR(&st_gw, 192, 168, 43, 255);      // 网关：192.168.43.255
+    IP4_ADDR(&st_gw, 192, 168, tree_level, 255);      // 网关：192.168.X.255
 
     // 基本SoftAp配置
     strncpy((char *)hapd_conf.ssid, (const char *)config->ssid, sizeof(hapd_conf.ssid) - 1);
@@ -1025,7 +1025,7 @@ int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level) {
     }
 
     char ip[16];
-    snprintf(ip, sizeof(ip), "192.168.43.%d", tree_level);
+    snprintf(ip, sizeof(ip), "192.168.%d.1", tree_level);
 
     if(HAL_WiFi_Send_data(ip, 9001, data) != 0){
         perror("send data fail.\r\n");

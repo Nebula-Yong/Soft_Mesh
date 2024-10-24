@@ -101,7 +101,7 @@ void sta_sample_task(void *param)
     // 测试发送数据
     // const char *test_data = "Hello, World!";
     const char *test_data = "0\n1\n2B4277";
-    char *server_ip = "192.168.43.0";
+    char *server_ip = "192.168.0.1";
     uint16_t port = 9001;
     result = HAL_WiFi_Send_data(server_ip, port, test_data);
     if (result != 0) {
@@ -113,7 +113,7 @@ void sta_sample_task(void *param)
     // 测试接收数据
     char buffer[128];
     char client_ip[16];
-    server_ip = "192.168.43.1";
+    server_ip = "192.168.1.1";
     result = HAL_WiFi_Receive_data(server_ip, port, buffer, sizeof(buffer), client_ip);
     if (result != 0) {
         printf("Failed to receive data from client.\n");
