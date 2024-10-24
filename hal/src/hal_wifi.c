@@ -865,6 +865,44 @@ void delete_leave_sta_mac_ip_list(WiFiSTAInfo *sta_info, uint32_t sta_num) {
     }
 }
 
+int HAL_WiFi_GetAllMAC(char ***mac_list) {
+    if (mac_list == NULL) {
+        printf("Invalid input parameters.\n");
+        return -1;
+    }
+
+    MAC_IP_Node *current = head;
+    uint32_t count = 0;
+
+    if (len_mac_ip_list == 0) {
+        return 0;
+    }
+
+    // 分配指针数组，大小为 len_mac_ip_list
+    *mac_list = (char **)malloc(len_mac_ip_list * sizeof(char *));
+    if (*mac_list == NULL) {
+        printf("Memory allocation failed.\n");
+        return -1;
+    }
+
+    // 遍历链表，将 MAC 地址拷贝到 mac_list 中
+    while (current != NULL) {
+        (*mac_list)[count] = (char *)malloc(7 * sizeof(char));  // 分配空间给每个MAC地址
+        if ((*mac_list)[count] == NULL) {
+            printf("Memory allocation failed.\n");
+            return -1;
+        }
+        strcpy((*mac_list)[count], current->binding.mac);
+        count++;
+        current = current->next;
+    }
+
+    // 返回实际拷贝的 MAC 地址数量
+    return count;
+}
+
+
+
 void HAL_WiFi_CreateIPMACBindingServer(void) {
     // 创建一个 TCP 套接字
     int listen_sock = socket(AF_INET, SOCK_STREAM, 0);

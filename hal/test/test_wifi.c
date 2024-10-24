@@ -5,11 +5,11 @@
 #include "app_init.h"
 #include <stdlib.h>  // 引入动态内存分配
 
-#define TEST_TARGET_SSID "FsrLab"
+#define TEST_TARGET_SSID "FsrMesh_2B4277_0"
 #define TEST_TARGET_PASSWORD "12345678"
 #define MAX_SCAN_RESULTS 64
 
-#define AP_SSID "FsrLab_AP"
+#define AP_SSID "FsrMesh_2B4276_1"
 #define AP_PASSWORD "12345678"
 #define AP_CHANNEL 6
 
@@ -99,9 +99,10 @@ void sta_sample_task(void *param)
     }
 
     // 测试发送数据
-    const char *test_data = "Hello, World!";
-    char *server_ip = "192.168.137.1";
-    uint16_t port = 8080;
+    // const char *test_data = "Hello, World!";
+    const char *test_data = "0\n1\n2B4277";
+    char *server_ip = "192.168.43.0";
+    uint16_t port = 9001;
     result = HAL_WiFi_Send_data(server_ip, port, test_data);
     if (result != 0) {
         printf("Failed to send data to server.\n");

@@ -366,6 +366,34 @@ int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac)
 }
 
 /**
+ * @brief 获取节点的MAC地址，AP MAC地址的后三位
+ * @param type 指定无线通信类型。
+ * @param[out] mac 存储MAC地址的缓冲区，至少需要7字节
+ * @return 0 表示成功，非 0 表示失败
+ * @note 6字节的MAC地址，最后一位为'\0'，共7字节
+ */
+int HAL_Wireless_GetNodeMAC(WirelessType type, char *mac) {
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_GetNodeMAC(mac);
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_GetNodeMAC(mac);
+            printf("Bluetooth node MAC address retrieval not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_GetNodeMAC(mac);
+            printf("nearlink node MAC address retrieval not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}
+
+/**
  * @brief 通过无线通信模块发送数据
  * @param type 指定无线通信类型。
  * @param MAC 目标设备的MAC地址,7字节
@@ -516,7 +544,7 @@ int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *m
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_Server_Receive(server_fd, mac, buffer, buffer_len);
             if(ret >= 0) {
-                printf("Data received from client %s: %s\n", mac, buffer);
+                // printf("Data received from client %s: %s\n", mac, buffer);
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
@@ -526,6 +554,38 @@ int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *m
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_ReceiveDataFromClient(server_fd, mac, buffer, buffer_len);
             printf("nearlink data receive from client not implemented.\n");
+            break;
+        default:
+            printf("Unknown wireless type!\n");
+            return -1;
+    }
+    return ret;
+}
+
+/** 
+ * @brief 获取所有子节点的MAC地址
+ * @param[out] mac_list 存储MAC地址的指针数组
+ * @return 返回子节点的数量，或 < 0 表示失败
+ * @note 6字节的MAC地址，最后一位为'\0'，共7字节
+ */
+int HAL_Wireless_GetChildMACs(WirelessType type, char ***mac_list) {
+    int ret = -1;
+    switch (type) {
+        case WIRELESS_TYPE_WIFI:
+            ret = HAL_WiFi_GetAllMAC(mac_list);
+            if(ret >= 0) {
+                printf("Successfully retrieved %d child MAC addresses.\n", ret);
+            } else {
+                printf("Failed to retrieve child MAC addresses.\n");
+            }
+            break;
+        case WIRELESS_TYPE_BLUETOOTH:
+            // ret = HAL_Bluetooth_GetChildMACs(mac_list);
+            printf("Bluetooth child MAC retrieval not implemented.\n");
+            break;
+        case WIRELESS_TYPE_NEARLINK:
+            // ret = HAL_nearlink_GetChildMACs(mac_list);
+            printf("nearlink child MAC retrieval not implemented.\n");
             break;
         default:
             printf("Unknown wireless type!\n");

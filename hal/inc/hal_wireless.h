@@ -147,6 +147,15 @@ int HAL_Wireless_GetConnectedDeviceInfo(WirelessType type, WirelessConnectedInfo
 int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac);
 
 /**
+ * @brief 获取节点的MAC地址，AP MAC地址的后三位
+ * @param type 指定无线通信类型。
+ * @param[out] mac 存储MAC地址的缓冲区，至少需要7字节
+ * @return 0 表示成功，非 0 表示失败
+ * @note 6字节的MAC地址，最后一位为'\0'，共7字节
+ */
+int HAL_Wireless_GetNodeMAC(WirelessType type, char *mac);
+
+/**
  * @brief 通过无线通信模块发送数据给子节点
  * @param type 指定无线通信类型。
  * @param MAC 目标设备的MAC地址
@@ -205,6 +214,13 @@ int HAL_Wireless_CloseServer(WirelessType type, int server_fd);
  */
 int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *mac, char *buffer, int buffer_len);
 
+/** 
+ * @brief 获取所有子节点的MAC地址
+ * @param[out] mac_list 存储MAC地址的指针数组
+ * @return 返回子节点的数量，或 < 0 表示失败
+ * @note 6字节的MAC地址，最后一位为'\0'，共7字节
+ */
+int HAL_Wireless_GetChildMACs(WirelessType type, char ***mac_list);
 
 #ifdef __cplusplus
 }

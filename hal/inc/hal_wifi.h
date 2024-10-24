@@ -245,6 +245,13 @@ int HAL_WiFi_Close_Server(int server_fd);
  */
 int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_len);
 
+/**
+ * @brief 获取当前路由表的所有设备的MAC地址
+ * @param[out] mac_list 存储MAC地址的指针数组
+ * @return 返回MAC地址的数量，或 < 0 表示失败
+ * @note 每个MAC地址占用6字节
+ */
+int HAL_WiFi_GetAllMAC(char ***mac_list);
 
 #ifdef __cplusplus
 }

@@ -36,7 +36,7 @@ osEventFlagsId_t route_transport_event_flags;
 static NetworkState current_state;
 
 // 定义全局 Mesh 网络配置
-static MeshNetworkConfig g_mesh_config;
+MeshNetworkConfig g_mesh_config;
 
 // 定义连接配置
 static WirelessSTAConfig sta_config;
@@ -254,7 +254,7 @@ NetworkState state_scanning(void) {
         strcpy(sta_config.password, g_mesh_config.password);
         memcpy(sta_config.bssid, best_result->bssid, sizeof(sta_config.bssid));
         memcpy(g_mesh_config.root_mac, best_mac, sizeof(g_mesh_config.root_mac));  // 更新 root_mac
-        g_mesh_config.tree_level = best_tree_level;  // 更新树层级
+        g_mesh_config.tree_level = best_tree_level + 1;  // 更新树层级
         sta_config.type = DEFAULT_WIRELESS_TYPE;
 
         free(scan_results);  // 释放内存
@@ -287,7 +287,7 @@ NetworkState state_join_existing_network(void) {
 NetworkState state_open_ap(void) {
     LOG("Opening AP mode...\n");
     char ap_ssid[33];
-    char tree_level_char = int_to_tree_level(g_mesh_config.tree_level + 1);
+    char tree_level_char = int_to_tree_level(g_mesh_config.tree_level);
     snprintf(ap_ssid, sizeof(ap_ssid), "%s_%c%c%c%c%c%c_%c", g_mesh_config.mesh_ssid, g_mesh_config.root_mac[0], g_mesh_config.root_mac[1], g_mesh_config.root_mac[2], g_mesh_config.root_mac[3], g_mesh_config.root_mac[4], g_mesh_config.root_mac[5], tree_level_char);
     
     WirelessAPConfig ap_config;
@@ -296,7 +296,7 @@ NetworkState state_open_ap(void) {
     ap_config.channel = 6;  // ws63开发板不会生效，设置为0好像会自动筛选一个信道开启，
     ap_config.security = DEFAULT_WIRELESS_SECURITY;
     ap_config.type = DEFAULT_WIRELESS_TYPE;
-    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config, g_mesh_config.tree_level + 1) != 0) {
+    if (HAL_Wireless_EnableAP(DEFAULT_WIRELESS_TYPE, &ap_config, g_mesh_config.tree_level) != 0) {
         LOG("Failed to start AP mode.\n");
         return STATE_TERMINATE;
     } else {
