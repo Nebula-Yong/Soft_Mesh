@@ -70,8 +70,11 @@ int find(HashTable* table, unsigned char *mac) {
     return -1;  // 如果没有找到，返回-1
 }
 
-// 释放哈希表
 void free_hash_table(HashTable* table) {
+    if (table == NULL || table->buckets == NULL) {
+        return;  // 防止传入空表或未初始化的桶
+    }
+    
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
         HashNode* node = table->buckets[i];
         while (node != NULL) {
@@ -80,7 +83,9 @@ void free_hash_table(HashTable* table) {
             free(temp);
         }
     }
-    free(table);
+    
+    free(table->buckets);  // 释放桶数组
+    free(table);           // 释放哈希表本身
 }
 
 // 创建一个图节点
@@ -147,17 +152,29 @@ void printGraph(struct Graph* graph) {
 }
 
 void free_graph(struct Graph* graph) {
-    for (int i = 0; i < graph->numVertices; i++) {
-        struct Node* temp = graph->adjLists[i];
-        while (temp) {
-            struct Node* next = temp->next;
-            free(temp);
-            temp = next;
-        }
+    if (graph == NULL) {
+        return;  // 如果图为空，则直接返回
     }
-    free(graph->adjLists);
-    free(graph->parentArray);
-    free(graph);
+    
+    // 释放邻接表中的每个链表节点
+    if (graph->adjLists != NULL) {
+        for (int i = 0; i < graph->numVertices; i++) {
+            struct Node* temp = graph->adjLists[i];
+            while (temp != NULL) {
+                struct Node* next = temp->next;
+                free(temp);
+                temp = next;
+            }
+        }
+        free(graph->adjLists);  // 释放邻接表数组
+    }
+    
+    // 释放父节点数组
+    if (graph->parentArray != NULL) {
+        free(graph->parentArray);
+    }
+    
+    free(graph);  // 释放图结构本身
 }
 
 

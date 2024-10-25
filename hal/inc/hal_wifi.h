@@ -197,6 +197,11 @@ int HAL_WiFi_GetAPConfig(WiFiAPConfig *config);
 void HAL_WiFi_CreateIPMACBindingServer(void);
 
 /**
+ * @brief 创建TCP客户端用于给绑定服务器定期发送MAC地址心跳包
+ */
+void HAL_WiFi_CreateIPMACBindingClient(void);
+
+/**
  * @brief 获取节点的MAC地址，AP MAC地址的后三位
  * @param[out] mac 存储MAC地址的缓冲区，至少需要7字节
  * @return 0 表示成功，非 0 表示失败

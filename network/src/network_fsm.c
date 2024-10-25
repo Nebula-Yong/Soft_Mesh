@@ -310,7 +310,7 @@ NetworkState state_open_ap(void) {
 NetworkState state_check_root_conflict(void) {
     uint32_t flags = osEventFlagsWait(wireless_event_flags, WIRELESS_CONNECT_BIT | WIRELESS_DISCONNECT_BIT, osFlagsWaitAny, 100);
     LOG("flag:0x%08X\n", flags);
-    if (flags & WIRELESS_CONNECT_BIT || flags == osFlagsErrorTimeout) {
+    if (flags & WIRELESS_CONNECT_BIT || flags == osFlagsErrorTimeout) {  // 开大节点，关大节点，会导致scan超时，可能是scan接口设计问题，后续将去匹配目标节点的代码去除掉
         LOG("Wi-Fi connected or nothing happen.\n");
         // 成功连接后，继续扫描是否存在其他的mesh网络，如果mesh网络的mac比自己的mac大，则加入该网络
         WirelessScanResult *scan_results = (WirelessScanResult *)malloc(sizeof(WirelessScanResult) * MAX_SCAN_RESULTS);
