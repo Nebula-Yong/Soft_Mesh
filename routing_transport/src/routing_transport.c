@@ -5,6 +5,7 @@
 #include "app_init.h"
 #include "hal_wireless.h"
 #include "network_fsm.h"
+#include "routing_transport.h"
 
 extern MeshNetworkConfig g_mesh_config;
 
@@ -23,20 +24,9 @@ extern osEventFlagsId_t route_transport_event_flags;
 #define ROUTE_TRANSPORT_START_BIT (1 << 0)
 #define ROUTE_TRANSPORT_STOP_BIT  (1 << 1)
 
-#define MAC_SIZE 6
-#define HASH_TABLE_SIZE 100  // 哈希表大小，选择适当大小避免冲突过多
+HashTable* table = NULL;  // 定义哈希表
 
-// 哈希表节点
-typedef struct HashNode {
-    unsigned char mac[MAC_SIZE];
-    int index;
-    struct HashNode* next;
-} HashNode;
-
-// 哈希表
-typedef struct {
-    HashNode* buckets[HASH_TABLE_SIZE];
-} HashTable;
+struct Graph* graph = NULL;  // 定义图
 
 // 简单的哈希函数，将MAC地址转化为哈希值
 unsigned int hash(unsigned char *mac) {
@@ -92,19 +82,6 @@ void free_hash_table(HashTable* table) {
     }
     free(table);
 }
-
-// 定义邻接表节点结构
-struct Node {
-    int vertex;
-    struct Node* next;
-};
-
-// 定义图结构，表示邻接表
-struct Graph {
-    int numVertices;
-    struct Node** adjLists;
-    int* parentArray;  // 父节点数组
-};
 
 // 创建一个图节点
 struct Node* createNode(int v) {
@@ -169,11 +146,38 @@ void printGraph(struct Graph* graph) {
     }
 }
 
+void free_graph(struct Graph* graph) {
+    for (int i = 0; i < graph->numVertices; i++) {
+        struct Node* temp = graph->adjLists[i];
+        while (temp) {
+            struct Node* next = temp->next;
+            free(temp);
+            temp = next;
+        }
+    }
+    free(graph->adjLists);
+    free(graph->parentArray);
+    free(graph);
+}
+
 
 // 处理路由包
 void process_route_packet(const char *mac, const char *data)
 {
     LOG("Received route packet from MAC: %s, data: %s\n", mac, data);
+    // 解析数据包
+    // 状态1：节点原本是子节点，hashtable和图都是空的
+    // 解析数据包，加入子节点的哈希表和图
+
+    // 状态2：节点已经是父节点，hashtable和图都不为空
+    // 解析数据包，更新子节点的哈希表和图
+
+    // 状态3：节点是子节点，hashtable和图都不为空
+    // 解析数据包，更新子节点的哈希表和图
+
+    // 最后检查，从图中获取当前节点的所有子节点，从路由表中获取当前节点的所有子节点，如果不一致，以路由表为准，更新图。
+
+
 }
 
 // 发送自己的路由表给父节点
@@ -245,6 +249,9 @@ void route_transport_task(void)
         LOG("flag:0x%08X\n", flags);
         if (flags & ROUTE_TRANSPORT_STOP_BIT && flags != osFlagsErrorTimeout) {
             LOG("Stop route transport task.\n");
+            // 清空哈希表和图
+            free_hash_table(table);
+            free_graph(graph);
             status = 0;
         }else if (flags & ROUTE_TRANSPORT_START_BIT && flags != osFlagsErrorTimeout) {
             LOG("Start route transport task.\n");
