@@ -68,6 +68,7 @@ uint32_t len_mac_ip_list = 0;
 
 // 用于控制服务器是否继续运行的全局标志
 volatile bool server_running = true;
+volatile bool client_running = false;
 
 osThreadId_t IP_MAC_thread_id;
 osThreadId_t heart_beat_thread_id;
@@ -96,10 +97,12 @@ static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru
         perror("Connect fail!. try agin !\r\n");
         g_wifi_state = WIFI_STA_SAMPLE_INIT;
         osEventFlagsSet(wireless_event_flags, WIRELESS_DISCONNECT_BIT);
-        osThreadTerminate(heart_beat_thread_id); // WiFi断开是关闭心跳线程
+        client_running = false;
     } else {
         g_wifi_state = WIFI_STA_SAMPLE_CONNECT_DONE;
         osEventFlagsSet(wireless_event_flags, WIRELESS_CONNECT_BIT);
+        client_running = true;
+
     }
 }
 
@@ -724,7 +727,14 @@ void add_mac_ip_binding(const char *mac, const char *ip) {
         if (strncmp(current->binding.mac, mac, sizeof(current->binding.mac)) == 0) {
             // 找到匹配的 MAC 地址，更新 IP 地址
             strcpy(current->binding.ip, ip);
+            current->count = 0;
             return;
+        }else{
+            current->count++;
+            if (current->count > 10) {
+                // 如果超过3次没有更新，删除该节点
+                remove_mac_ip_binding(current->binding.mac);
+            }
         }
         // 继续遍历链表
         current = current->next;
@@ -740,6 +750,7 @@ void add_mac_ip_binding(const char *mac, const char *ip) {
     // 初始化节点数据
     strcpy(new_node->binding.mac, mac);
     strcpy(new_node->binding.ip, ip);
+    new_node->count = 0;
     new_node->next = NULL;
 
     // 插入到链表的开头（头插法）
@@ -805,7 +816,7 @@ void print_mac_ip_bindings(void) {
 
     printf("Current MAC-IP Bindings:\n");
     while (current != NULL) {
-        printf("MAC: %s, IP: %s\n", current->binding.mac, current->binding.ip);
+        printf("MAC: %s, IP: %s, count: %d\n", current->binding.mac, current->binding.ip, current->count);
         current = current->next;
     }
 }
@@ -988,17 +999,19 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
 }
 
 void HAL_WiFi_CreateIPMACBindingClient(void) {
-    char ip[16];
-    snprintf(ip, sizeof(ip), "192.168.%d.1", tree_level);
-    char mac[7];
-    HAL_WiFi_GetNodeMAC(mac);
-    if(HAL_WiFi_Send_data(ip, 9000, mac) != 0)
-    {
-        perror("send data fail.\r\n");
-    }else{
-        printf("send data success.\r\n");
+    while (client_running) {
+        char ip[16];
+        snprintf(ip, sizeof(ip), "192.168.%d.1", tree_level);
+        char mac[7];
+        HAL_WiFi_GetNodeMAC(mac);
+        if(HAL_WiFi_Send_data(ip, 9000, mac) != 0)
+        {
+            perror("send data fail.\r\n");
+        }else{
+            printf("send data success.\r\n");
+        }
+        osDelay(100);
     }
-    return;
 }
 
 int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data) {

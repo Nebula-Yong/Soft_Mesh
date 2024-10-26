@@ -80,6 +80,7 @@ typedef struct {
 typedef struct MAC_IP_Node {
     MAC_IP_Binding binding;      // MAC-IP绑定信息
     struct MAC_IP_Node *next;    // 指向下一个节点的指针
+    int count;                   // 未更新次数
 } MAC_IP_Node;
 
 /**
