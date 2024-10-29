@@ -567,6 +567,7 @@ int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *m
  * @param[out] mac_list 存储MAC地址的指针数组
  * @return 返回子节点的数量，或 < 0 表示失败
  * @note 6字节的MAC地址，最后一位为'\0'，共7字节
+ * @note 注意清理分配的地址
  */
 int HAL_Wireless_GetChildMACs(WirelessType type, char ***mac_list) {
     int ret = -1;

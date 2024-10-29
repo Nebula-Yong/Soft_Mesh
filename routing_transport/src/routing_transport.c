@@ -417,8 +417,28 @@ void send_route_table_to_parent(void)
 
 }
 
-void del_overdue_nodes(void) {
-    return;
+void del_overdue_nodes(struct Graph* graph) {
+    if (graph == NULL) {
+        return;
+    }
+    printGraph(graph);
+    // 获取子节点的MAC地址
+    char** mac_list = NULL;
+    int len_mac_list = HAL_Wireless_GetChildMACs(DEFAULT_WIRELESS_TYPE, &mac_list);
+    for (int i = 0; i < len_mac_list; i++) {
+        if (find(table, (unsigned char*)mac_list[i]) == -1) {
+            del_then_gen(&graph, &table, find(table, (unsigned char*)mac_list[i]));
+            char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
+            generateFormattedString(graph, table, output);
+            // 发送自己的路由表给父节点
+            HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+        }
+    }
+    // 清理分配的地址
+    for (int i = 0; i < len_mac_list; i++) {
+        free(mac_list[i]);
+    }
+    free(mac_list);
 }
 
 void route_transport_task(void)
@@ -432,7 +452,7 @@ void route_transport_task(void)
     int status = 1;
     while (1)
     {
-        del_overdue_nodes();
+        del_overdue_nodes(graph);
         uint32_t flags = osEventFlagsWait(route_transport_event_flags, ROUTE_TRANSPORT_START_BIT | ROUTE_TRANSPORT_STOP_BIT, osFlagsWaitAny, 100);
         LOG("flag:0x%08X\n", flags);
         if (flags & ROUTE_TRANSPORT_STOP_BIT && flags != osFlagsErrorTimeout) {
