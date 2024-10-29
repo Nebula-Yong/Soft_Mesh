@@ -211,7 +211,6 @@ void uc2c(unsigned char *mac, char *str) {
 void generateFormattedString(struct Graph* graph, HashTable* table, char *output) {
     // 在前面添加 "0\nX\n"，其中 X 是节点的数量
     sprintf(output, "0\n%d\n", table->num_nodes);
-    
     for (int i = 0; i < table->num_nodes; i++)
     {
         char macStr[7]; // 存储MAC地址字符串（12个字符+终止符）
@@ -234,8 +233,88 @@ void copy_graph(struct Graph* src, struct Graph* dest) {
     }
 }
 
+void del_sub_tree(struct Graph* graph, int node) {
+    struct Node* temp = graph->adjLists[node];
+    while (temp != NULL) {
+        if (temp->vertex == graph->parentArray[node]) {
+            temp = temp->next;
+            continue;
+        }
+        del_sub_tree(graph, temp->vertex);
+        struct Node* next = temp->next;
+        free(temp);
+        temp = next;
+    }
+    graph->adjLists[node] = NULL;
+    graph->parentArray[node] = -1;
+}
+
+// id表示当前节点，new_id表示新图中的当前节点
+void regen_tree(struct Graph* graph, HashTable* table, struct Graph* new_graph, HashTable* new_table, int id, int new_id) {
+    // 依次处理当前节点的子节点
+    for (struct Node* temp = graph->adjLists[id]; temp != NULL; temp = temp->next) {
+        if (temp->vertex == graph->parentArray[id]) {
+            continue;  // 跳过父节点
+        }
+        // 添加边
+        addEdge(new_graph, new_id, new_table->num_nodes);
+        // 将MAC地址插入哈希表
+        insert(new_table, table->indexToMac[temp->vertex], new_table->num_nodes);
+        // 递归处理子节点
+        regen_tree(graph, table, new_graph, new_table, temp->vertex, new_table->num_nodes - 1);
+    }
+}
+
+void del_then_gen(struct Graph** p_graph, HashTable** p_table, int node) {
+    struct Graph* graph = *p_graph;
+    HashTable* table = *p_table;
+    // 先删除父节点到该节点的边
+    int parent = graph->parentArray[node];
+    struct Node* temp = graph->adjLists[parent];
+    struct Node* pre = NULL;
+    while (temp != NULL) {
+        if (temp->vertex == node) {
+            if (pre == NULL) {
+                graph->adjLists[parent] = temp->next;
+            }else{
+                pre->next = temp->next;
+            }
+            free(temp);
+            break;
+        }
+        pre = temp;
+        temp = temp->next;
+    }
+
+    // 删除该节点到子节点的边
+    
+    del_sub_tree(graph, node);
+    int deleted_nodes = 0;
+    for (int i = 1; i < table->num_nodes; i++) {
+        if (graph->parentArray[i] == -1) {
+            deleted_nodes++;
+        }
+    }
+
+    struct Graph* new_graph = createGraph(table->num_nodes - deleted_nodes);
+    HashTable* new_table = create_hash_table();
+
+    insert(new_table, table->indexToMac[0], 0);
+    regen_tree(graph, table, new_graph, new_table, 0, 0);
+
+    free_graph(graph);
+    free_hash_table(table);
+    *p_graph = new_graph;
+    *p_table = new_table;
+}
+
 // 从字符串中解析出节点信息并添加到图中
-struct Graph* add_tree_node(HashTable* table, struct Graph* graph, char* data) {
+void add_tree_node(const char *mac, HashTable** p_table, struct Graph** p_graph, char* data) {
+    HashTable* table = *p_table;
+    struct Graph* graph = *p_graph;
+    if (find(table, (unsigned char*)mac) != -1) {  // 说明该节点的子树已经存在
+        del_then_gen(&graph, &table, find(table, (unsigned char*)mac));  // 先删除再生成
+    }
     // 使用 strtok 解析出第一行和第二行
     char* token = strtok(data, "\n"); // 第一次调用，获取路由包类型 
     token = strtok(NULL, "\n");       // 第二次调用，获取节点数
@@ -251,12 +330,11 @@ struct Graph* add_tree_node(HashTable* table, struct Graph* graph, char* data) {
     // 使用 strtok 解析出每个节点的信息
     for (int i = 0; i < num_nodes; i++) {
         token = strtok(NULL, "\n");
-        // printf("%s\n", token);
         // 使用 sscanf 从每一行中解析数据
         int parent_index;
         char node_mac[7]; // 假设 MAC 地址不会超过 6 字符
         sscanf(token, "%s %d", node_mac, &parent_index);
-        if (parent_index == -1) {
+        if (parent_index == -1) {  // 如果时根节点
             addEdge(new_graph, 0, table->num_nodes);
             insert(table, (unsigned char*)node_mac, table->num_nodes);
             continue;
@@ -270,7 +348,8 @@ struct Graph* add_tree_node(HashTable* table, struct Graph* graph, char* data) {
     if (graph != NULL) {
         free_graph(graph);
     }
-    return new_graph;
+    *p_table = table;
+    *p_graph = new_graph;
 }
 
 // 处理路由包
@@ -289,12 +368,12 @@ void process_route_packet(const char *mac, char *data)
     1        // 节点数
     1 3C:4D:5E 0  // 节点1, MAC地址, 邻居数量, 邻居节点编号列表
      */
-    LOG("Received route packet from MAC: %s, data: %s\n", mac, data);
+    LOG("Received route packet from MAC: %s, data:\n %s\n", mac, data);
     if (table == NULL) {
         LOG("ERROR: hash Table is NULL.\n");
     }
 
-    graph = add_tree_node(table, graph, data);
+    add_tree_node(mac, &table, &graph, data);
     printGraph(graph);
 
     char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
@@ -336,34 +415,10 @@ void send_route_table_to_parent(void)
         return;
     }
 
-    // // 创建哈希表，存储MAC地址和索引的映射
-    // HashTable* table = create_hash_table();
-    // insert(table, my_mac, 0);  // 根节点的索引为0
-    // for (int i = 1; i <= len_mac_list; i++) {
-    //     insert(table, (unsigned char*)mac_list[i], i);
-    // }
+}
 
-    // // 创建一个图，表示邻接表
-    // struct Graph* graph = createGraph(len_mac_list + 1);  // 6个节点
-
-    // // 添加边
-    // for (int i = 0; i < len_mac_list; i++) {
-    //     addEdge(graph, find(table, my_mac), find(table, (unsigned char*)mac_list[i]));  // 0与1相连
-    // }
-
-    // // 打印图的邻接表
-    // printGraph(graph);
-    // HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, "Hello, parent!", g_mesh_config.tree_level);
-
-    // // 释放所有内存
-    // free_hash_table(table);
-    // free(graph->parentArray);
-    // free(graph->adjLists);
-    // free(graph);
-    // for (int i = 0; i < len_mac_list; i++) {
-    //     free(mac_list[i]);
-    // }
-
+void del_overdue_nodes(void) {
+    return;
 }
 
 void route_transport_task(void)
@@ -377,6 +432,7 @@ void route_transport_task(void)
     int status = 1;
     while (1)
     {
+        del_overdue_nodes();
         uint32_t flags = osEventFlagsWait(route_transport_event_flags, ROUTE_TRANSPORT_START_BIT | ROUTE_TRANSPORT_STOP_BIT, osFlagsWaitAny, 100);
         LOG("flag:0x%08X\n", flags);
         if (flags & ROUTE_TRANSPORT_STOP_BIT && flags != osFlagsErrorTimeout) {
