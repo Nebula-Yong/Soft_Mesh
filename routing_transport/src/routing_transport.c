@@ -40,9 +40,18 @@ unsigned int hash(unsigned char *mac) {
 // 创建哈希表
 HashTable* create_hash_table(void) {
     HashTable* table = (HashTable*)malloc(sizeof(HashTable));
+    
+    // 初始化哈希表的buckets
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
         table->buckets[i] = NULL;
     }
+
+    // 动态分配indexToMac数组，每个元素是一个MAC地址
+    table->indexToMac = (unsigned char**)malloc(MAX_NODES * sizeof(unsigned char*));
+    for (int i = 0; i < MAX_NODES; i++) {
+        table->indexToMac[i] = NULL;  // 初始化为NULL
+    }
+    table->num_nodes = 0;
     return table;
 }
 
@@ -54,6 +63,12 @@ void insert(HashTable* table, unsigned char *mac, int index) {
     new_node->index = index;
     new_node->next = table->buckets[bucket_index];
     table->buckets[bucket_index] = new_node;
+    // 为indexToMac[index]动态分配空间并存储MAC地址
+    if (table->indexToMac[index] == NULL) {
+        table->indexToMac[index] = (unsigned char*)malloc(MAC_SIZE * sizeof(unsigned char));
+    }
+    memcpy(table->indexToMac[index], mac, MAC_SIZE);
+    table->num_nodes++;
 }
 
 // 根据MAC地址查找索引
@@ -70,11 +85,12 @@ int find(HashTable* table, unsigned char *mac) {
     return -1;  // 如果没有找到，返回-1
 }
 
+// 释放哈希表
 void free_hash_table(HashTable* table) {
     if (table == NULL || table->buckets == NULL) {
         return;  // 防止传入空表或未初始化的桶
     }
-    
+
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
         HashNode* node = table->buckets[i];
         while (node != NULL) {
@@ -83,9 +99,15 @@ void free_hash_table(HashTable* table) {
             free(temp);
         }
     }
-    
-    free(table->buckets);  // 释放桶数组
-    free(table);           // 释放哈希表本身
+
+    // 释放indexToMac中每个动态分配的MAC地址
+    for (int i = 0; i < MAX_NODES; i++) {
+        if (table->indexToMac[i] != NULL) {
+            free(table->indexToMac[i]);
+        }
+    }
+    free(table->indexToMac);
+    free(table);
 }
 
 // 创建一个图节点
@@ -132,22 +154,22 @@ void addEdge(struct Graph* graph, int src, int dest) {
 // 打印从某个节点到根节点的路径
 void printPathToRoot(struct Graph* graph, int vertex) {
     while (vertex != -1) {  // 如果父节点为 -1，则到达根节点
-        LOG("%d ", vertex);
+        printf("%d ", vertex);
         vertex = graph->parentArray[vertex];
     }
-    LOG("\n");
+    printf("\n");
 }
 
 // 打印图的邻接表
 void printGraph(struct Graph* graph) {
     for (int v = 0; v < graph->numVertices; v++) {
         struct Node* temp = graph->adjLists[v];
-        LOG("Node %d: ", v);
+        printf("Node %d: ", v);
         while (temp) {
-            LOG("%d -> ", temp->vertex);
+            printf("%d -> ", temp->vertex);
             temp = temp->next;
         }
-        LOG("NULL\n");
+        printf("NULL\n");
     }
 }
 
@@ -177,22 +199,111 @@ void free_graph(struct Graph* graph) {
     free(graph);  // 释放图结构本身
 }
 
+// 将unsigned char类型（6字节）转为char类型（7字节）的MAC地址字符串
+void uc2c(unsigned char *mac, char *str) {
+    for (int i = 0; i < MAC_SIZE; i++) {
+        str[i] = mac[i];
+    }
+    str[MAC_SIZE] = '\0';  // 添加字符串终止符
+}
+
+// 生成格式化字符串
+void generateFormattedString(struct Graph* graph, HashTable* table, char *output) {
+    // 在前面添加 "0\nX\n"，其中 X 是节点的数量
+    sprintf(output, "0\n%d\n", table->num_nodes);
+    
+    for (int i = 0; i < table->num_nodes; i++)
+    {
+        char macStr[7]; // 存储MAC地址字符串（12个字符+终止符）
+        uc2c(table->indexToMac[i], macStr);
+        // 添加MAC地址和父节点信息
+        sprintf(output + strlen(output), "%s %d", macStr, graph->parentArray[i]);
+        // 添加\n作为节点之间的分隔符
+        if (i < table->num_nodes - 1) {
+            strcat(output, "\n");
+        }
+    }
+}
+
+void copy_graph(struct Graph* src, struct Graph* dest) {
+    for (int i = 0; i < src->numVertices; i++) {
+        if (src->parentArray[i] == -1) {
+            continue;  // 跳过根节点
+        }
+        addEdge(dest, src->parentArray[i], i);
+    }
+}
+
+// 从字符串中解析出节点信息并添加到图中
+struct Graph* add_tree_node(HashTable* table, struct Graph* graph, char* data) {
+    // 使用 strtok 解析出第一行和第二行
+    char* token = strtok(data, "\n"); // 第一次调用，获取路由包类型 
+    token = strtok(NULL, "\n");       // 第二次调用，获取节点数
+    int num_nodes = atoi(token);
+    struct Graph* new_graph = NULL;
+    if (graph == NULL) {
+        new_graph = createGraph(num_nodes + 1);  // 创建图，节点数为num_nodes + 1
+    }else{
+        new_graph = createGraph(graph->numVertices + num_nodes); 
+        copy_graph(graph, new_graph);
+    }
+    int offset = table->num_nodes; 
+    // 使用 strtok 解析出每个节点的信息
+    for (int i = 0; i < num_nodes; i++) {
+        token = strtok(NULL, "\n");
+        // printf("%s\n", token);
+        // 使用 sscanf 从每一行中解析数据
+        int parent_index;
+        char node_mac[7]; // 假设 MAC 地址不会超过 6 字符
+        sscanf(token, "%s %d", node_mac, &parent_index);
+        if (parent_index == -1) {
+            addEdge(new_graph, 0, table->num_nodes);
+            insert(table, (unsigned char*)node_mac, table->num_nodes);
+            continue;
+        }
+        parent_index = parent_index + offset; // 为了避免和已有节点冲突，将节点索引加上已有节点数
+        // 添加边
+        addEdge(new_graph, parent_index, table->num_nodes);
+        // 将MAC地址插入哈希表
+        insert(table, (unsigned char*)node_mac, table->num_nodes);
+    }
+    if (graph != NULL) {
+        free_graph(graph);
+    }
+    return new_graph;
+}
 
 // 处理路由包
-void process_route_packet(const char *mac, const char *data)
+void process_route_packet(const char *mac, char *data)
 {
+    /*
+    //多个节点的情况
+    0          // 路由包类型，0表示路由表
+    4        // 节点数
+    3C:4D:5E -1   // MAC地址, 父节点
+    3C:4D:5F 0    // 
+    3C:4D:60 0    // 
+    3C:4D:61 1    // 
+    //单个节点的情况
+    0          // 路由包类型，0表示路由表
+    1        // 节点数
+    1 3C:4D:5E 0  // 节点1, MAC地址, 邻居数量, 邻居节点编号列表
+     */
     LOG("Received route packet from MAC: %s, data: %s\n", mac, data);
-    // 解析数据包
-    // 状态1：节点原本是子节点，hashtable和图都是空的
-    // 解析数据包，加入子节点的哈希表和图
+    if (table == NULL) {
+        LOG("ERROR: hash Table is NULL.\n");
+    }
 
-    // 状态2：节点已经是父节点，hashtable和图都不为空
-    // 解析数据包，更新子节点的哈希表和图
+    graph = add_tree_node(table, graph, data);
+    printGraph(graph);
 
-    // 状态3：节点是子节点，hashtable和图都不为空
-    // 解析数据包，更新子节点的哈希表和图
+    char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
+    generateFormattedString(graph, table, output);
 
-    // 最后检查，从图中获取当前节点的所有子节点，从路由表中获取当前节点的所有子节点，如果不一致，以路由表为准，更新图。
+    // 发送自己的路由表给父节点
+    HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+
+    free(output);
 
 
 }
@@ -212,11 +323,15 @@ void send_route_table_to_parent(void)
     if(HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac) != 0) {
         LOG("Failed to get MAC address.\n");
     }
-
+    // 创建哈希表，存储MAC地址和索引的映射
+    table = create_hash_table();
+    insert(table, (unsigned char*)my_mac, 0);  
+    
+    // 发送自己的路由表给父节点
     if (len_mac_list == 0 && g_mesh_config.tree_level != 0) {
         LOG("No child nodes.\n");
         char msg[10];
-        sprintf(msg, "0\n1\n%s", my_mac);
+        sprintf(msg, "0\n1\n%s -1", my_mac);
         HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, msg, g_mesh_config.tree_level - 1);
         return;
     }
