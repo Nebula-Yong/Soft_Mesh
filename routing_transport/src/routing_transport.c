@@ -107,7 +107,30 @@ void free_hash_table(HashTable* table) {
         }
     }
     free(table->indexToMac);
+    free(table->buckets);
     free(table);
+}
+
+// 清除除0号节点的映射外的所有映射
+void clean_hash_table(HashTable* table) {
+    LOG("Cleaning hash table...");
+    if (table == NULL || table->buckets == NULL) {
+        return;  // 防止传入空表或未初始化的桶
+    }
+    unsigned char mac[MAC_SIZE];
+    memcpy(mac, table->indexToMac[0], MAC_SIZE);  // 保存0号节点的MAC地址
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        table->indexToMac[i] = NULL;  // 清空indexToMac
+        HashNode* node = table->buckets[i];
+        while (node != NULL) {
+            HashNode* temp = node;
+            node = node->next;
+            free(temp);
+        }
+        table->buckets[i] = NULL;  // 清空哈希桶
+    }
+    table->num_nodes = 0;  // 保留0号节点
+    insert(table, mac, 0);  // 重新插入0号节点
 }
 
 // 创建一个图节点
@@ -313,6 +336,7 @@ void add_tree_node(const char *mac, HashTable** p_table, struct Graph** p_graph,
     HashTable* table = *p_table;
     struct Graph* graph = *p_graph;
     if (find(table, (unsigned char*)mac) != -1) {  // 说明该节点的子树已经存在
+        LOG("Node %s already exists.\n", mac);
         del_then_gen(&graph, &table, find(table, (unsigned char*)mac));  // 先删除再生成
     }
     // 使用 strtok 解析出第一行和第二行
@@ -327,6 +351,7 @@ void add_tree_node(const char *mac, HashTable** p_table, struct Graph** p_graph,
         copy_graph(graph, new_graph);
     }
     int offset = table->num_nodes; 
+    LOG("offset: %d\n", offset);
     // 使用 strtok 解析出每个节点的信息
     for (int i = 0; i < num_nodes; i++) {
         token = strtok(NULL, "\n");
@@ -368,13 +393,15 @@ void process_route_packet(const char *mac, char *data)
     1        // 节点数
     1 3C:4D:5E 0  // 节点1, MAC地址, 邻居数量, 邻居节点编号列表
      */
-    LOG("Received route packet from MAC: %s, data:\n %s\n", mac, data);
+    LOG("Received route packet from MAC: %s, data:\n%s\n", mac, data);
     if (table == NULL) {
         LOG("ERROR: hash Table is NULL.\n");
     }
 
     add_tree_node(mac, &table, &graph, data);
+    LOG("add_tree_node success!");
     printGraph(graph);
+    LOG("printGraph success!");
 
     char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
     generateFormattedString(graph, table, output);
@@ -417,7 +444,7 @@ void send_route_table_to_parent(void)
 
 }
 
-void del_overdue_nodes(struct Graph* graph) {
+void del_overdue_nodes(void) {
     if (graph == NULL) {
         return;
     }
@@ -425,19 +452,48 @@ void del_overdue_nodes(struct Graph* graph) {
     // 获取子节点的MAC地址
     char** mac_list = NULL;
     int len_mac_list = HAL_Wireless_GetChildMACs(DEFAULT_WIRELESS_TYPE, &mac_list);
-    for (int i = 0; i < len_mac_list; i++) {
-        if (find(table, (unsigned char*)mac_list[i]) == -1) {
-            del_then_gen(&graph, &table, find(table, (unsigned char*)mac_list[i]));
-            char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
-            generateFormattedString(graph, table, output);
-            // 发送自己的路由表给父节点
-            HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+    if (len_mac_list == 0) {
+        free_graph(graph);
+        clean_hash_table(table);
+        graph = NULL;
+        char msg[10];
+        sprintf(msg, "0\n1\n%s -1", table->indexToMac[0]);
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, msg, g_mesh_config.tree_level - 1);
+        return;
+    }
+
+    // 从graph中获取根节点的子节点的MAC地址
+    char ** graph_mac_list = (char**)malloc(15 * sizeof(char*));
+    int graph_len_mac_list = 0;
+    for (int i = 0; i < graph->numVertices; i++) {
+        if (graph->parentArray[i] == 0) {
+            graph_mac_list[graph_len_mac_list] = (char*)malloc(7 * sizeof(char));
+            uc2c(table->indexToMac[i], graph_mac_list[graph_len_mac_list]);
+            graph_len_mac_list++;
         }
     }
+    // 比较两个MAC地址列表，删除过期的节点
+    for (int i = 0; i < graph_len_mac_list; i++) {
+        int found = 0;
+        for (int j = 0; j < len_mac_list; j++) {
+            if (strcmp(graph_mac_list[i], mac_list[j]) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        if (found == 0) {
+            del_then_gen(&graph, &table, find(table, (unsigned char*)graph_mac_list[i]));
+        }
+    }
+
     // 清理分配的地址
     for (int i = 0; i < len_mac_list; i++) {
         free(mac_list[i]);
     }
+    for (int i = 0; i < graph_len_mac_list; i++) {
+        free(graph_mac_list[i]);
+    }
+    free(graph_mac_list);
     free(mac_list);
 }
 
@@ -452,14 +508,16 @@ void route_transport_task(void)
     int status = 1;
     while (1)
     {
-        del_overdue_nodes(graph);
-        uint32_t flags = osEventFlagsWait(route_transport_event_flags, ROUTE_TRANSPORT_START_BIT | ROUTE_TRANSPORT_STOP_BIT, osFlagsWaitAny, 100);
+        uint32_t flags = osEventFlagsWait(route_transport_event_flags, ROUTE_TRANSPORT_START_BIT | ROUTE_TRANSPORT_STOP_BIT, osFlagsWaitAny, 200);
+        del_overdue_nodes();
         LOG("flag:0x%08X\n", flags);
         if (flags & ROUTE_TRANSPORT_STOP_BIT && flags != osFlagsErrorTimeout) {
             LOG("Stop route transport task.\n");
             // 清空哈希表和图
             free_hash_table(table);
             free_graph(graph);
+            table = NULL;
+            graph = NULL;
             status = 0;
         }else if (flags & ROUTE_TRANSPORT_START_BIT && flags != osFlagsErrorTimeout) {
             LOG("Start route transport task.\n");

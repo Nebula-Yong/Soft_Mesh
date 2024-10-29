@@ -729,12 +729,6 @@ void add_mac_ip_binding(const char *mac, const char *ip) {
             strcpy(current->binding.ip, ip);
             current->count = 0;
             return;
-        }else{
-            current->count++;
-            if (current->count > 10) {
-                // 如果超过3次没有更新，删除该节点
-                remove_mac_ip_binding(current->binding.mac);
-            }
         }
         // 继续遍历链表
         current = current->next;
@@ -809,6 +803,19 @@ int find_mac_from_ip(const char *ip, char *mac) {
 
     // 没有找到匹配的 IP 地址
     return -1;
+}
+
+void add_mac_ip_bindings_counts(void) {
+    MAC_IP_Node *current = head;
+
+    // 遍历链表，为每个节点的计数器加 1
+    while (current != NULL) {
+        current->count++;
+        if (current -> count > 30) {
+            remove_mac_ip_binding(current->binding.mac);
+        }
+        current = current->next;
+    }
 }
 
 void print_mac_ip_bindings(void) {
@@ -968,6 +975,7 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
     char mac[7];
     char ip[16];
     while (server_running) {  // 使用全局标志控制循环
+        add_mac_ip_bindings_counts();
         print_mac_ip_bindings();
         // 接受连接请求
         struct sockaddr_in client_addr;
@@ -978,7 +986,7 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
         }else{
             // 接收数据
             char buffer[10];
-            int ret = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
+            int ret = recv(client_sock, buffer, sizeof(buffer) - 1, 0);  // 需要改成非阻塞接受
             if (ret < 0 || ret > 7) {
                 // 超时或数据长度不符合要求
                 closesocket(client_sock);
