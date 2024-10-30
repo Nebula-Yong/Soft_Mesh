@@ -24,5 +24,13 @@ int mesh_send_data(const char *dest_mac, const char *data);
  */
 int mesh_broadcast(const char *data);
 
+/**
+ * @brief 非阻塞接收数据
+ * @param[out] src_mac 存储发送节点的MAC地址
+ * @param[out] data 存储接收到的数据
+ * @return 0表示成功，-1表示失败
+ */
+int mesh_recv_data(char *src_mac, char *data);
+
 #endif
 

@@ -9,6 +9,9 @@
 
 extern MeshNetworkConfig g_mesh_config;
 
+#define QUEUE_SIZE 5  // 队列的容量
+osMessageQueueId_t dataPacketQueueId;
+
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
 
@@ -460,16 +463,24 @@ void send_ack_packet(char* my_mac, DataPacket packet) {
     free(ack_data);
 }
 
+void put_packet_to_queue(DataPacket packet) {
+    osStatus_t status = osMessageQueuePut(dataPacketQueueId, &packet, 0, 0);
+    if (status != osOK) {
+        LOG("Failed to put data packet to queue.\n");
+    }
+}
+
 void process_data_packet(const char *mac, char *data)
 {
     LOG("Received data packet from MAC: %s, data: %s\n", mac, data);
     // 解析数据包
     DataPacket packet = parse_data_packet(data);
-
+    
     // 如果是广播数据包，直接向下广播
     if (strncmp(packet.dest_mac, "FFFFFF", MAC_SIZE) == 0) {
         LOG("Broadcast data packet.\n");
         LOG("Broadcast data: %s", packet.data);
+        put_packet_to_queue(packet);  // 将数据包放入队列
         broadcast_data_packet(packet);
         return;
     }
@@ -479,6 +490,7 @@ void process_data_packet(const char *mac, char *data)
         LOG("Received broadcast request.\n");
         strcpy(packet.dest_mac, "FFFFFF");
         packet.status = '4';  // 表示广播包
+        put_packet_to_queue(packet);  // 将数据包放入队列
         broadcast_data_packet(packet);
         return;
     }
@@ -491,6 +503,7 @@ void process_data_packet(const char *mac, char *data)
     if (strncmp(packet.dest_mac, my_mac, MAC_SIZE) == 0) {
         LOG("Received data packet for me.\n");
         LOG("Data: %s\n", packet.data);
+        put_packet_to_queue(packet);  // 将数据包放入队列
         // 回应收到, status = 1
         if (packet.status == '0') {
             send_ack_packet(my_mac, packet);
@@ -586,6 +599,7 @@ void send_route_table_to_parent(void)
 }
 
 void del_overdue_nodes(void) {
+    LOG("del overdue nodes");
     if (graph == NULL) {
         return;
     }
@@ -640,6 +654,13 @@ void del_overdue_nodes(void) {
 
 void route_transport_task(void)
 {
+    // 创建数据包队列
+    dataPacketQueueId = osMessageQueueNew(QUEUE_SIZE, sizeof(DataPacket), NULL);
+    if (dataPacketQueueId == NULL) {
+        LOG("Failed to create data packet queue.\n");
+        return;
+    }
+    // 创建监听服务器
     int server_fd = HAL_Wireless_CreateServer(DEFAULT_WIRELESS_TYPE);
     if (server_fd < 0) {
         LOG("Failed to create server.\n");

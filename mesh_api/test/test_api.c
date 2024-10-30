@@ -18,11 +18,18 @@ void test_api_task(void)
     while (1)
     {
         osDelay(1000);
-        // if (mesh_broadcast("Hello, Mesh!") != 0) {
-        //     printf("mesh_broadcast failed.\n");
-        // } else {
-        //     printf("mesh_broadcast successfully.\n");
-        // }
+        char src_mac[7] = {0};
+        char data[512] = {0};
+        if(mesh_recv_data(src_mac, data) == 0) {
+            printf("Received data from client: %s, MAC: %s\n", data, src_mac);
+        }else {
+            printf("no data recv.\n");
+        }
+        if (mesh_broadcast("Hello, Mesh!") != 0) {
+            printf("mesh_broadcast failed.\n");
+        } else {
+            printf("mesh_broadcast successfully.\n");
+        }
     }
     
 }

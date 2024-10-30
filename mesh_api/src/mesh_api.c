@@ -27,6 +27,8 @@ char mesh_password[65];
 osThreadId_t network_task_id;
 osThreadId_t route_transport_task_id;
 
+extern osMessageQueueId_t dataPacketQueueId;
+
 // Mesh配置全局变量
 extern MeshNetworkConfig g_mesh_config;
 
@@ -119,5 +121,20 @@ int mesh_broadcast(const char *data) {
         char *packet_data = generate_data_packet(packet);
         HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, packet_data, g_mesh_config.tree_level - 1);
     }
+    return 0;
+}
+
+int mesh_recv_data(char *src_mac, char *data) {
+    // 从队列中获取数据包
+    DataPacket packet;
+    osStatus_t status = osMessageQueueGet(dataPacketQueueId, &packet, NULL, 0);
+    if (status != osOK) {
+        LOG("no data in queue.\n");
+        return -1;
+    }
+    // 解析数据包
+    strncpy(src_mac, packet.src_mac, MAC_SIZE);
+    src_mac[MAC_SIZE] = '\0';
+    strcpy(data, packet.data);
     return 0;
 }
