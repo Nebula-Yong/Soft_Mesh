@@ -9,6 +9,9 @@
 
 extern MeshNetworkConfig g_mesh_config;
 
+#define QUEUE_SIZE 5  // 队列的容量
+osMessageQueueId_t dataPacketQueueId;
+
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
 
@@ -27,8 +30,6 @@ extern osEventFlagsId_t route_transport_event_flags;
 HashTable* table = NULL;  // 定义哈希表
 
 struct Graph* graph = NULL;  // 定义图
-
-void send_data_packet(const char *dest_mac, const char *data);
 
 // 简单的哈希函数，将MAC地址转化为哈希值
 unsigned int hash(unsigned char *mac) {
@@ -395,8 +396,10 @@ void process_route_packet(const char *mac, char *data)
     char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
     generateFormattedString(graph, table, output);
 
-    // 发送自己的路由表给父节点
-    HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+    if (g_mesh_config.tree_level != 0) {
+        // 发送自己的路由表给父节点
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+    }
 
     free(output);
     
@@ -409,15 +412,6 @@ void process_route_packet(const char *mac, char *data)
 | 1:表示数据透传 | A1B2C3              | B2C3A1                 | 0：发送包       | 000~999            |                        |                |
 */
 // 创建一个数据包的数据结构
-typedef struct {
-    char type;  // 数据包类型
-    char src_mac[MAC_SIZE];  // 源节点MAC地址
-    char dest_mac[MAC_SIZE];  // 目标节点MAC地址
-    char status;  // 数据包状态
-    char packet_num[3];  // 数据包编号
-    char crc[2];        // 校验位
-    char data[494];  // 数据位
-} DataPacket;
 
 DataPacket parse_data_packet(const char *data) {
     DataPacket packet;
@@ -445,11 +439,59 @@ char* generate_data_packet(DataPacket packet) {
     return data;
 }
 
+void broadcast_data_packet(DataPacket packet) {
+    char* packet_data = generate_data_packet(packet);
+    char** mac_list = NULL;
+    int len_mac_list = HAL_Wireless_GetChildMACs(DEFAULT_WIRELESS_TYPE, &mac_list);
+    for (int i = 0; i < len_mac_list; i++) {
+        HAL_Wireless_SendData_to_child(DEFAULT_WIRELESS_TYPE, mac_list[i], packet_data);
+        free(mac_list[i]);  // 顺便清理内存
+    }
+    free(packet_data);
+    free(mac_list);
+}
+
+void send_ack_packet(char* my_mac, DataPacket packet) {
+    memcpy(packet.dest_mac, packet.src_mac, MAC_SIZE);
+    memcpy(packet.src_mac, my_mac, MAC_SIZE);
+    packet.status = '1';
+    strcpy(packet.data, "Received");
+    char* ack_data = generate_data_packet(packet);
+    HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, ack_data, g_mesh_config.tree_level - 1);
+    free(ack_data);
+}
+
+void put_packet_to_queue(DataPacket packet) {
+    osStatus_t status = osMessageQueuePut(dataPacketQueueId, &packet, 0, 0);
+    if (status != osOK) {
+        LOG("Failed to put data packet to queue.\n");
+    }
+}
+
 void process_data_packet(const char *mac, char *data)
 {
     LOG("Received data packet from MAC: %s, data: %s\n", mac, data);
     // 解析数据包
     DataPacket packet = parse_data_packet(data);
+    
+    // 如果是广播数据包，直接向下广播
+    if (strncmp(packet.dest_mac, "FFFFFF", MAC_SIZE) == 0) {
+        LOG("Broadcast data packet.\n");
+        LOG("Broadcast data: %s", packet.data);
+        put_packet_to_queue(packet);  // 将数据包放入队列
+        broadcast_data_packet(packet);
+        return;
+    }
+
+    // 如果是广播请求包，并且自己是根节点，则开始广播
+    if (packet.status == '3' && g_mesh_config.tree_level == 0) {
+        LOG("Received broadcast request.\n");
+        strcpy(packet.dest_mac, "FFFFFF");
+        packet.status = '4';  // 表示广播包
+        put_packet_to_queue(packet);  // 将数据包放入队列
+        broadcast_data_packet(packet);
+        return;
+    }
     // 获取自己的MAC地址
     char my_mac[MAC_SIZE + 1] = {0};
     if(HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac) != 0) {
@@ -459,14 +501,11 @@ void process_data_packet(const char *mac, char *data)
     if (strncmp(packet.dest_mac, my_mac, MAC_SIZE) == 0) {
         LOG("Received data packet for me.\n");
         LOG("Data: %s\n", packet.data);
+        put_packet_to_queue(packet);  // 将数据包放入队列
         // 回应收到, status = 1
-        memcpy(packet.dest_mac, packet.src_mac, MAC_SIZE);
-        memcpy(packet.src_mac, my_mac, MAC_SIZE);
-        packet.status = '1';
-        strcpy(packet.data, "Received");
-        char* ack_data = generate_data_packet(packet);
-        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, ack_data, g_mesh_config.tree_level - 1);
-        free(ack_data);
+        if (packet.status == '0') {
+            send_ack_packet(my_mac, packet);
+        }
     } else {
         // 如果不是目标节点，则转发数据包
         LOG("Forwarding data packet...\n");
@@ -558,6 +597,7 @@ void send_route_table_to_parent(void)
 }
 
 void del_overdue_nodes(void) {
+    LOG("del overdue nodes");
     if (graph == NULL) {
         return;
     }
@@ -612,6 +652,13 @@ void del_overdue_nodes(void) {
 
 void route_transport_task(void)
 {
+    // 创建数据包队列
+    dataPacketQueueId = osMessageQueueNew(QUEUE_SIZE, sizeof(DataPacket), NULL);
+    if (dataPacketQueueId == NULL) {
+        LOG("Failed to create data packet queue.\n");
+        return;
+    }
+    // 创建监听服务器
     int server_fd = HAL_Wireless_CreateServer(DEFAULT_WIRELESS_TYPE);
     if (server_fd < 0) {
         LOG("Failed to create server.\n");
@@ -667,24 +714,24 @@ void route_transport_task(void)
     return;
 }
 
-/* 创建任务 */
-static void route_transport_entry(void)
-{
-    osThreadAttr_t attr;
-    attr.name       = "route_transport_task";
-    attr.attr_bits  = 0U;
-    attr.cb_mem     = NULL;
-    attr.cb_size    = 0U;
-    attr.stack_mem  = NULL;
-    attr.stack_size = 0x1000;
-    attr.priority   = osPriorityLow4;
+// /* 创建任务 */
+// static void route_transport_entry(void)
+// {
+//     osThreadAttr_t attr;
+//     attr.name       = "route_transport_task";
+//     attr.attr_bits  = 0U;
+//     attr.cb_mem     = NULL;
+//     attr.cb_size    = 0U;
+//     attr.stack_mem  = NULL;
+//     attr.stack_size = 0x1000;
+//     attr.priority   = osPriorityLow4;
 
-    if (osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr) == NULL) {
-        LOG("Create route_transport_task failed.\n");
-    } else {
-        LOG("Create route_transport_task successfully.\n");
-    }
-}
+//     if (osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr) == NULL) {
+//         LOG("Create route_transport_task failed.\n");
+//     } else {
+//         LOG("Create route_transport_task successfully.\n");
+//     }
+// }
 
-/* 启动任务 */
-app_run(route_transport_entry);
+// /* 启动任务 */
+// app_run(route_transport_entry);

@@ -46,5 +46,7 @@ NetworkState state_check_root_conflict(void);    // 检查根节点冲突状态�
 NetworkState state_create_root(void);            // 创建根节点状态处理函数
 NetworkState state_terminate(void);              // 结束状态处理函数
 
+// 网络连接状态
+int network_connected(void);
 
 #endif // NETWORK_FSM_H
