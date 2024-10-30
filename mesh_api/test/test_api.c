@@ -5,13 +5,24 @@
 #include "mesh_api.h"
 
 
+
 void test_api_task(void)
 {
     printf("test_api_task run...\n");
+    // 设置Mesh网络的SSID和密码
     if(mesh_init("FsrMesh", "12345678") != 0) {
         printf("mesh_init failed.\n");
     } else {
         printf("mesh_init successfully.\n");
+    }
+    while (1)
+    {
+        osDelay(1000);
+        // if (mesh_broadcast("Hello, Mesh!") != 0) {
+        //     printf("mesh_broadcast failed.\n");
+        // } else {
+        //     printf("mesh_broadcast successfully.\n");
+        // }
     }
     
 }

@@ -32,4 +32,20 @@ struct Graph {
     int* parentArray;  // 父节点数组
 };
 
+typedef struct {
+    char type;  // 数据包类型
+    char src_mac[MAC_SIZE];  // 源节点MAC地址
+    char dest_mac[MAC_SIZE];  // 目标节点MAC地址
+    char status;  // 数据包状态
+    char packet_num[3];  // 数据包编号
+    char crc[2];        // 校验位
+    char data[494];  // 数据位
+} DataPacket;
+
+void broadcast_data_packet(DataPacket packet);
+
+char* generate_data_packet(DataPacket packet);
+
+void route_transport_task(void);
+
 #endif

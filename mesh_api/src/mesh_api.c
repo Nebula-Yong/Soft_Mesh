@@ -4,6 +4,8 @@
 #include "cmsis_os2.h"
 #include "app_init.h"
 #include "network_fsm.h"
+#include "routing_transport.h"
+#include "hal_wireless.h"
 
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
@@ -23,6 +25,10 @@ char mesh_password[65];
 
 // 线程ID
 osThreadId_t network_task_id;
+osThreadId_t route_transport_task_id;
+
+// Mesh配置全局变量
+extern MeshNetworkConfig g_mesh_config;
 
 void network_task(void) {
     MeshNetworkConfig mesh_config;
@@ -47,20 +53,71 @@ int mesh_init(const char *ssid, const char *password) {
     strcpy(mesh_password, password);
 
     // 创建network线程
-    osThreadAttr_t attr;
-    attr.name       = "network_task";         // 任务名
-    attr.attr_bits  = 0U;                   // 任务属性位
-    attr.cb_mem     = NULL;                 // 控制块内存
-    attr.cb_size    = 0U;                   // 控制块大小
-    attr.stack_mem  = NULL;                 // 栈内存
-    attr.stack_size = 0x1500;// 任务栈大小
-    attr.priority   = osPriorityLow4;      // 任务优先级
+    osThreadAttr_t attr1;
+    attr1.name       = "network_task";         // 任务名
+    attr1.attr_bits  = 0U;                   // 任务属性位
+    attr1.cb_mem     = NULL;                 // 控制块内存
+    attr1.cb_size    = 0U;                   // 控制块大小
+    attr1.stack_mem  = NULL;                 // 栈内存
+    attr1.stack_size = 0x1500;// 任务栈大小
+    attr1.priority   = osPriorityLow4;      // 任务优先级
 
-    network_task_id = osThreadNew((osThreadFunc_t)network_task, NULL, &attr);
+    network_task_id = osThreadNew((osThreadFunc_t)network_task, NULL, &attr1);
     // 创建任务并检查是否成功
     if (network_task_id == NULL) {
         LOG("Failed to create network task.\n");
         return -1;
+    }
+
+    // 创建路由构建和传输线程
+    osThreadAttr_t attr2;
+    attr2.name       = "route_transport_task";
+    attr2.attr_bits  = 0U;
+    attr2.cb_mem     = NULL;
+    attr2.cb_size    = 0U;
+    attr2.stack_mem  = NULL;
+    attr2.stack_size = 0x1000;
+    attr2.priority   = osPriorityLow4;
+
+    route_transport_task_id = osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr2);
+    if (route_transport_task_id == NULL) {
+        LOG("Failed to create route transport task.\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int mesh_broadcast(const char *data) {
+    // 检查网络是否连接
+    if (network_connected() != 1) {
+        LOG("Network is not connected.\n");
+        return -1;
+    }
+    DataPacket packet;
+    // 如果自己是根节点，则直接广播数据包
+    if (g_mesh_config.tree_level == 0) {
+        packet.type = '1';
+        strcpy(packet.src_mac, "000000");
+        strcpy(packet.dest_mac, "FFFFFF");
+        packet.status = '4';
+        memcpy(packet.packet_num, "000", 3);
+        memcpy(packet.crc, "00", 2);
+        strcpy(packet.data, data);
+        broadcast_data_packet(packet);
+    }else{
+        // 如果不是根节点，则向根节点发送广播请求
+        packet.type = '1';
+        char my_mac[7] = {0};
+        HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac);
+        strcpy(packet.src_mac, my_mac);
+        strcpy(packet.dest_mac, "000000");
+        packet.status = '3';
+        memcpy(packet.packet_num, "000", 3);
+        memcpy(packet.crc, "00", 2);
+        strcpy(packet.data, data);
+        char *packet_data = generate_data_packet(packet);
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, packet_data, g_mesh_config.tree_level - 1);
     }
     return 0;
 }

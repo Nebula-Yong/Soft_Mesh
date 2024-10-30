@@ -395,8 +395,10 @@ void process_route_packet(const char *mac, char *data)
     char* output = (char*)malloc(11 * table->num_nodes * sizeof(char));
     generateFormattedString(graph, table, output);
 
-    // 发送自己的路由表给父节点
-    HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+    if (g_mesh_config.tree_level != 0) {
+        // 发送自己的路由表给父节点
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
+    }
 
     free(output);
     
@@ -409,15 +411,6 @@ void process_route_packet(const char *mac, char *data)
 | 1:表示数据透传 | A1B2C3              | B2C3A1                 | 0：发送包       | 000~999            |                        |                |
 */
 // 创建一个数据包的数据结构
-typedef struct {
-    char type;  // 数据包类型
-    char src_mac[MAC_SIZE];  // 源节点MAC地址
-    char dest_mac[MAC_SIZE];  // 目标节点MAC地址
-    char status;  // 数据包状态
-    char packet_num[3];  // 数据包编号
-    char crc[2];        // 校验位
-    char data[494];  // 数据位
-} DataPacket;
 
 DataPacket parse_data_packet(const char *data) {
     DataPacket packet;
@@ -702,24 +695,24 @@ void route_transport_task(void)
     return;
 }
 
-/* 创建任务 */
-static void route_transport_entry(void)
-{
-    osThreadAttr_t attr;
-    attr.name       = "route_transport_task";
-    attr.attr_bits  = 0U;
-    attr.cb_mem     = NULL;
-    attr.cb_size    = 0U;
-    attr.stack_mem  = NULL;
-    attr.stack_size = 0x1000;
-    attr.priority   = osPriorityLow4;
+// /* 创建任务 */
+// static void route_transport_entry(void)
+// {
+//     osThreadAttr_t attr;
+//     attr.name       = "route_transport_task";
+//     attr.attr_bits  = 0U;
+//     attr.cb_mem     = NULL;
+//     attr.cb_size    = 0U;
+//     attr.stack_mem  = NULL;
+//     attr.stack_size = 0x1000;
+//     attr.priority   = osPriorityLow4;
 
-    if (osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr) == NULL) {
-        LOG("Create route_transport_task failed.\n");
-    } else {
-        LOG("Create route_transport_task successfully.\n");
-    }
-}
+//     if (osThreadNew((osThreadFunc_t)route_transport_task, NULL, &attr) == NULL) {
+//         LOG("Create route_transport_task failed.\n");
+//     } else {
+//         LOG("Create route_transport_task successfully.\n");
+//     }
+// }
 
-/* 启动任务 */
-app_run(route_transport_entry);
+// /* 启动任务 */
+// app_run(route_transport_entry);

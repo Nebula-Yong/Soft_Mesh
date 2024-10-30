@@ -53,7 +53,7 @@ int network_fsm_init(const MeshNetworkConfig *config) {
         strncpy(g_mesh_config.password, config->password, sizeof(g_mesh_config.password) - 1);
         g_mesh_config.mesh_ssid[sizeof(g_mesh_config.mesh_ssid) - 1] = '\0';  // 确保字符串以 '\0' 结尾
         g_mesh_config.password[sizeof(g_mesh_config.password) - 1] = '\0';    // 确保字符串以 '\0' 结尾
-
+        g_mesh_config.tree_level = -1; // -1 表示节点还未完成组网
         LOG("Mesh Network Config: SSID = %s, Password = %s\n", g_mesh_config.mesh_ssid, g_mesh_config.password);
     }else
     {
@@ -396,6 +396,7 @@ NetworkState state_create_root(void) {
     WirelessAPConfig ap_config;
     strncpy(ap_config.ssid, root_ssid, sizeof(ap_config.ssid) - 1);
     strncpy(ap_config.password, g_mesh_config.password, sizeof(ap_config.password) - 1);
+    g_mesh_config.tree_level = 0;
     ap_config.channel = 6;  // ws63开发板不会生效，设置为0好像会自动筛选一个信道开启，
     ap_config.security = DEFAULT_WIRELESS_SECURITY;
     ap_config.type = DEFAULT_WIRELESS_TYPE;
@@ -413,4 +414,12 @@ NetworkState state_create_root(void) {
 NetworkState state_terminate(void) {
     LOG("Terminating network state machine...\n");
     return STATE_TERMINATE;
+}
+
+int network_connected(void) {
+    if (current_state == STATE_CHECK_ROOT_CONFLICT) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
