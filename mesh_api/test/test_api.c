@@ -8,7 +8,12 @@
 void test_api_task(void)
 {
     printf("test_api_task run...\n");
-    mesh_init("FsrMesh", "12345678");
+    if(mesh_init("FsrMesh", "12345678") != 0) {
+        printf("mesh_init failed.\n");
+    } else {
+        printf("mesh_init successfully.\n");
+    }
+    
 }
 
 /* 创建任务 */
