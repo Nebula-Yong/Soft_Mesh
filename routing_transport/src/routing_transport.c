@@ -28,6 +28,8 @@ HashTable* table = NULL;  // 定义哈希表
 
 struct Graph* graph = NULL;  // 定义图
 
+void send_data_packet(const char *dest_mac, const char *data);
+
 // 简单的哈希函数，将MAC地址转化为哈希值
 unsigned int hash(unsigned char *mac) {
     unsigned int hash_value = 0;
@@ -380,19 +382,6 @@ void add_tree_node(const char *mac, HashTable** p_table, struct Graph** p_graph,
 // 处理路由包
 void process_route_packet(const char *mac, char *data)
 {
-    /*
-    //多个节点的情况
-    0          // 路由包类型，0表示路由表
-    4        // 节点数
-    3C:4D:5E -1   // MAC地址, 父节点
-    3C:4D:5F 0    // 
-    3C:4D:60 0    // 
-    3C:4D:61 1    // 
-    //单个节点的情况
-    0          // 路由包类型，0表示路由表
-    1        // 节点数
-    1 3C:4D:5E 0  // 节点1, MAC地址, 邻居数量, 邻居节点编号列表
-     */
     LOG("Received route packet from MAC: %s, data:\n%s\n", mac, data);
     if (table == NULL) {
         LOG("ERROR: hash Table is NULL.\n");
@@ -410,8 +399,112 @@ void process_route_packet(const char *mac, char *data)
     HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, output, g_mesh_config.tree_level - 1);
 
     free(output);
+    
+}
 
+// 处理数据包
+/*
+| [0]:数据包类型 | [1-6]:源节点MAC地址 | [7-12]:目标节点MAC地址 | [13]:数据包状态 | [14-16]:数据包编号 | [17-18]:校验位（可选） | [19-512]数据位 |
+| -------------- | ------------------- | ---------------------- | --------------- | ------------------ | ---------------------- | -------------- |
+| 1:表示数据透传 | A1B2C3              | B2C3A1                 | 0：发送包       | 000~999            |                        |                |
+*/
+// 创建一个数据包的数据结构
+typedef struct {
+    char type;  // 数据包类型
+    char src_mac[MAC_SIZE];  // 源节点MAC地址
+    char dest_mac[MAC_SIZE];  // 目标节点MAC地址
+    char status;  // 数据包状态
+    char packet_num[3];  // 数据包编号
+    char crc[2];        // 校验位
+    char data[494];  // 数据位
+} DataPacket;
 
+DataPacket parse_data_packet(const char *data) {
+    DataPacket packet;
+    packet.type = data[0];
+    memcpy(packet.src_mac, data + 1, MAC_SIZE);
+    memcpy(packet.dest_mac, data + 7, MAC_SIZE);
+    packet.status = data[13];
+    memcpy(packet.packet_num, data + 14, 3);
+    memcpy(packet.crc, data + 17, 2);
+    memcpy(packet.data, data + 19, 494);
+    return packet;
+}
+
+char* generate_data_packet(DataPacket packet) {
+    char* data = (char*)malloc(513 * sizeof(char));
+    data[0] = packet.type;
+    memcpy(data + 1, packet.src_mac, MAC_SIZE);
+    memcpy(data + 7, packet.dest_mac, MAC_SIZE);
+    data[13] = packet.status;
+    memcpy(data + 14, packet.packet_num, 3);
+    packet.crc[0] = '0';
+    packet.crc[1] = '0';
+    memcpy(data + 17, packet.crc, 2);
+    memcpy(data + 19, packet.data, 494);
+    return data;
+}
+
+void process_data_packet(const char *mac, char *data)
+{
+    LOG("Received data packet from MAC: %s, data: %s\n", mac, data);
+    // 解析数据包
+    DataPacket packet = parse_data_packet(data);
+    // 获取自己的MAC地址
+    char my_mac[MAC_SIZE + 1] = {0};
+    if(HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac) != 0) {
+        LOG("Failed to get MAC address.\n");
+    }
+    // 如果是目标节点，则处理数据包
+    if (strncmp(packet.dest_mac, my_mac, MAC_SIZE) == 0) {
+        LOG("Received data packet for me.\n");
+        LOG("Data: %s\n", packet.data);
+    } else {
+        // 如果不是目标节点，则转发数据包
+        LOG("Forwarding data packet...\n");
+        // 查找哈希表，分析节点是否在图中
+        int dest_index = find(table, (unsigned char*)packet.dest_mac);
+        if (dest_index == -1) {
+            LOG("Forwarding data packet to parent node.\n");
+            HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, data, g_mesh_config.tree_level - 1);
+            return;
+        }else {
+            LOG("Forwarding data packet to child node.\n");
+            while (graph->parentArray[dest_index] != 0) 
+            {
+                dest_index = graph->parentArray[dest_index];
+            }
+            char dest_mac[7] = {0};
+            uc2c(table->indexToMac[dest_index], dest_mac);
+            HAL_Wireless_SendData_to_child(DEFAULT_WIRELESS_TYPE, dest_mac, data);
+        }
+    }
+}
+
+void send_data_packet(const char *dest_mac, const char *data) {
+    // 创建数据包
+    DataPacket packet;
+    packet.type = '1';
+    char my_mac[MAC_SIZE + 1] = {0};
+    if(HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac) != 0) {
+        LOG("Failed to get MAC address.\n");
+    }
+    memcpy(packet.src_mac, my_mac, MAC_SIZE);
+    memcpy(packet.dest_mac, dest_mac, MAC_SIZE);
+    packet.status = '0';
+    memcpy(packet.packet_num, "000", 3);
+    strcpy(packet.data, data);
+    char* packet_data = generate_data_packet(packet);
+    LOG("Sending data packet to MAC: %s, data: %s\n", dest_mac, packet_data);
+    // 发送数据包
+    if (find(table, (unsigned char*)dest_mac) == -1) {
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, packet_data, g_mesh_config.tree_level - 1);
+        LOG("Forwarding data packet to parent node.\n");
+    }else {
+        HAL_Wireless_SendData_to_child(DEFAULT_WIRELESS_TYPE, dest_mac, packet_data);
+        LOG("Forwarding data packet to child node.\n");
+    }
+    free(packet_data);
 }
 
 // 发送自己的路由表给父节点
@@ -540,7 +633,10 @@ void route_transport_task(void)
             // 路由包
             process_route_packet(mac, buffer);
             break;
-        
+        case '1':
+            // 数据包
+            process_data_packet(mac, buffer);
+            break;
         default:
             break;
         }
