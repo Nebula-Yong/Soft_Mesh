@@ -459,6 +459,14 @@ void process_data_packet(const char *mac, char *data)
     if (strncmp(packet.dest_mac, my_mac, MAC_SIZE) == 0) {
         LOG("Received data packet for me.\n");
         LOG("Data: %s\n", packet.data);
+        // 回应收到, status = 1
+        memcpy(packet.dest_mac, packet.src_mac, MAC_SIZE);
+        memcpy(packet.src_mac, my_mac, MAC_SIZE);
+        packet.status = '1';
+        strcpy(packet.data, "Received");
+        char* ack_data = generate_data_packet(packet);
+        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, ack_data, g_mesh_config.tree_level - 1);
+        free(ack_data);
     } else {
         // 如果不是目标节点，则转发数据包
         LOG("Forwarding data packet...\n");
@@ -466,6 +474,18 @@ void process_data_packet(const char *mac, char *data)
         int dest_index = find(table, (unsigned char*)packet.dest_mac);
         if (dest_index == -1) {
             LOG("Forwarding data packet to parent node.\n");
+            if (g_mesh_config.tree_level == 0) {
+                LOG("target node not in mesh network\n");
+                // 回应status = 2
+                memcpy(packet.dest_mac, packet.src_mac, MAC_SIZE);
+                memcpy(packet.src_mac, my_mac, MAC_SIZE);
+                packet.status = '2';
+                strcpy(packet.data, "Target node not in mesh network");
+                char* ack_data = generate_data_packet(packet);
+                HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, ack_data, g_mesh_config.tree_level - 1);
+                free(ack_data);
+                return;
+            }
             HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, data, g_mesh_config.tree_level - 1);
             return;
         }else {
