@@ -445,11 +445,50 @@ char* generate_data_packet(DataPacket packet) {
     return data;
 }
 
+void broadcast_data_packet(DataPacket packet) {
+    char* packet_data = generate_data_packet(packet);
+    char** mac_list = NULL;
+    int len_mac_list = HAL_Wireless_GetChildMACs(DEFAULT_WIRELESS_TYPE, &mac_list);
+    for (int i = 0; i < len_mac_list; i++) {
+        HAL_Wireless_SendData_to_child(DEFAULT_WIRELESS_TYPE, mac_list[i], packet_data);
+        free(mac_list[i]);  // 顺便清理内存
+    }
+    free(packet_data);
+    free(mac_list);
+}
+
+void send_ack_packet(char* my_mac, DataPacket packet) {
+    memcpy(packet.dest_mac, packet.src_mac, MAC_SIZE);
+    memcpy(packet.src_mac, my_mac, MAC_SIZE);
+    packet.status = '1';
+    strcpy(packet.data, "Received");
+    char* ack_data = generate_data_packet(packet);
+    HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, ack_data, g_mesh_config.tree_level - 1);
+    free(ack_data);
+}
+
 void process_data_packet(const char *mac, char *data)
 {
     LOG("Received data packet from MAC: %s, data: %s\n", mac, data);
     // 解析数据包
     DataPacket packet = parse_data_packet(data);
+
+    // 如果是广播数据包，直接向下广播
+    if (strncmp(packet.dest_mac, "FFFFFF", MAC_SIZE) == 0) {
+        LOG("Broadcast data packet.\n");
+        LOG("Broadcast data: %s", packet.data);
+        broadcast_data_packet(packet);
+        return;
+    }
+
+    // 如果是广播请求包，并且自己是根节点，则开始广播
+    if (packet.status == '3' && g_mesh_config.tree_level == 0) {
+        LOG("Received broadcast request.\n");
+        strcpy(packet.dest_mac, "FFFFFF");
+        packet.status = '4';  // 表示广播包
+        broadcast_data_packet(packet);
+        return;
+    }
     // 获取自己的MAC地址
     char my_mac[MAC_SIZE + 1] = {0};
     if(HAL_Wireless_GetNodeMAC(DEFAULT_WIRELESS_TYPE, my_mac) != 0) {
@@ -460,13 +499,9 @@ void process_data_packet(const char *mac, char *data)
         LOG("Received data packet for me.\n");
         LOG("Data: %s\n", packet.data);
         // 回应收到, status = 1
-        memcpy(packet.dest_mac, packet.src_mac, MAC_SIZE);
-        memcpy(packet.src_mac, my_mac, MAC_SIZE);
-        packet.status = '1';
-        strcpy(packet.data, "Received");
-        char* ack_data = generate_data_packet(packet);
-        HAL_Wireless_SendData_to_parent(DEFAULT_WIRELESS_TYPE, ack_data, g_mesh_config.tree_level - 1);
-        free(ack_data);
+        if (packet.status == '0') {
+            send_ack_packet(my_mac, packet);
+        }
     } else {
         // 如果不是目标节点，则转发数据包
         LOG("Forwarding data packet...\n");
