@@ -20,8 +20,16 @@
 #include <sys/time.h>
 
 
-// 定义宏，用于自动传递 __FILE__, __func__, __LINE__ 给打印函数
-#define perror printf
+// 定义宏开关，打开或关闭日志输出
+#define ENABLE_LOG 0  // 1 表示开启日志，0 表示关闭日志
+
+// 定义 LOG 宏，如果 ENABLE_LOG 为 1，则打印日志，并输出文件名、行号、日志内容
+#if ENABLE_LOG
+    #define LOG(fmt, ...) printf("LOG [%s:%d]: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#else
+    #define LOG(fmt, ...) do { UNUSED(fmt); } while (0) 
+#endif
+
 #define WIFI_NOT_AVALLIABLE              0
 #define WIFI_AVALIABE                    1
 #define WIFI_SCAN_AP_LIMIT               64
@@ -56,7 +64,7 @@ enum {
 void CreateWirelessEventFlags(void) {
     wireless_event_flags = osEventFlagsNew(NULL);  // 使用默认属性创建事件标志
     if (wireless_event_flags == NULL) {
-        perror("Failed to create Wi-Fi event flags.\r\n");
+        LOG("Failed to create Wi-Fi event flags.\r\n");
     }
 }
 
@@ -94,7 +102,7 @@ static td_void wifi_connection_changed(td_s32 state, const wifi_linked_info_stru
     UNUSED(reason_code);
 
     if (state == WIFI_NOT_AVALLIABLE) {
-        perror("Connect fail!. try agin !\r\n");
+        LOG("Connect fail!. try agin !\r\n");
         g_wifi_state = WIFI_STA_SAMPLE_INIT;
         osEventFlagsSet(wireless_event_flags, WIRELESS_DISCONNECT_BIT);
         client_running = false;
@@ -112,7 +120,7 @@ int HAL_WiFi_Init(void)
 
     /* 注册事件回调 */
     if (wifi_register_event_cb(&wifi_event_cb) != 0) {
-        perror("wifi_event_cb register fail.\r\n");
+        LOG("wifi_event_cb register fail.\r\n");
         return -1;
     }
 
@@ -136,7 +144,7 @@ td_bool example_check_dhcp_status(struct netif *netif_p, td_u32 *wait_count)
     }
 
     if (*wait_count > WIFI_GET_IP_MAX_COUNT) {
-        perror("%s::STA DHCP timeout, try again !.\r\n");
+        LOG("%s::STA DHCP timeout, try again !.\r\n");
         *wait_count = 0;
         g_wifi_state = WIFI_STA_SAMPLE_INIT;
     }
@@ -177,7 +185,7 @@ int HAL_WiFi_Deinit(void)
 int HAL_WiFi_STA_Enable(void)
 {
     if (wifi_sta_enable() != 0) {
-        perror("wifi_sta_enable fail.\r\n");
+        LOG("wifi_sta_enable fail.\r\n");
         return -1;
     }else{
         return 0;
@@ -187,7 +195,7 @@ int HAL_WiFi_STA_Enable(void)
 int HAL_WiFi_STA_Disable(void)
 {
     if (wifi_sta_disable() != 0) {
-        perror("wifi_sta_disable fail.\r\n");
+        LOG("wifi_sta_disable fail.\r\n");
         return -1;
     }else{
         return 0;
@@ -197,7 +205,7 @@ int HAL_WiFi_STA_Disable(void)
 int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_results)
 {
     if (wifi_config == NULL || results == NULL || max_results <= 0) {
-        perror("Invalid input.\r\n");
+        LOG("Invalid input.\r\n");
         return -1;
     }
 
@@ -205,7 +213,7 @@ int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_r
 
     // 启动扫描
     if (wifi_sta_scan() != 0) {
-        perror("Wi-Fi scan failed to start.\r\n");
+        LOG("Wi-Fi scan failed to start.\r\n");
         return -1;
     }
 
@@ -216,7 +224,7 @@ int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_r
         elapsed_time += SCAN_POLL_INTERVAL_MS;
 
         if (elapsed_time >= SCAN_TIMEOUT_MS) {
-            perror("Wi-Fi scan timed out.\r\n");
+            LOG("Wi-Fi scan timed out.\r\n");
             return -1;
         }
     }
@@ -225,14 +233,14 @@ int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_r
     td_u32 scan_len = sizeof(wifi_scan_info_stru) * WIFI_SCAN_AP_LIMIT;
     wifi_scan_info_stru *scan_results = osal_kmalloc(scan_len, OSAL_GFP_ATOMIC);
     if (scan_results == TD_NULL) {
-        perror("Failed to allocate memory for scan results.\r\n");
+        LOG("Failed to allocate memory for scan results.\r\n");
         return -1;
     }
 
     memset_s(scan_results, scan_len, 0, scan_len);
     uint32_t num_results = WIFI_SCAN_AP_LIMIT;
     if (wifi_sta_get_scan_info(scan_results, &num_results) != 0) {
-        perror("Failed to get Wi-Fi scan results.\r\n");
+        LOG("Failed to get Wi-Fi scan results.\r\n");
         osal_kfree(scan_results);
         return -1;
     }
@@ -298,7 +306,7 @@ int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_r
     osal_kfree(scan_results);
 
     if (!found_ap) {
-        perror("Failed to find the target SSID: %s\r\n", wifi_config->ssid);
+        LOG("Failed to find the target SSID: %s\r\n", wifi_config->ssid);
         return -1;
     }
 
@@ -308,7 +316,7 @@ int HAL_WiFi_Scan(WiFiSTAConfig *wifi_config, WiFiScanResult *results, int max_r
 int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
 {
     if (wifi_config == NULL) {
-        perror("Invalid input: wifi_config is NULL.\r\n");
+        LOG("Invalid input: wifi_config is NULL.\r\n");
         return -1;
     }
 
@@ -322,7 +330,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
     hw_config.ip_type = 1; /* 1：IP类型为动态DHCP获取 */
     // 启动 STA 模式并连接
     if (wifi_sta_connect(&hw_config) != 0) {
-        perror("Wi-Fi connect failed.\r\n");
+        LOG("Wi-Fi connect failed.\r\n");
         return -1;
     }
 
@@ -338,7 +346,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
 
         // 检查是否超时
         if (elapsed_time >= CONNECT_TIMEOUT_MS) {
-            perror("Wi-Fi connection timed out.\r\n");
+            LOG("Wi-Fi connection timed out.\r\n");
             return -1;
         }
     }
@@ -347,13 +355,13 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
     const char *ifname = "wlan0";  // 假设网卡接口名为wlan0，根据实际调整
     struct netif *netif_p = netifapi_netif_find(ifname);
     if (netif_p == NULL) {
-        perror("Network interface not found: %s\n", ifname);
+        LOG("Network interface not found: %s\n", ifname);
         return -1;
     }
 
     // 启动 DHCP 获取 IP 地址
     if (netifapi_dhcp_start(netif_p) != 0) {
-        perror("Failed to start DHCP on interface: %s\n", ifname);
+        LOG("Failed to start DHCP on interface: %s\n", ifname);
         return -1;
     }
 
@@ -365,7 +373,7 @@ int HAL_WiFi_Connect(const WiFiSTAConfig *wifi_config)
             break;
         }
         if (wait_count > WIFI_GET_IP_MAX_COUNT) {
-            perror("DHCP timeout on interface: %s\n", ifname);
+            LOG("DHCP timeout on interface: %s\n", ifname);
             return -1;
         }
     }
@@ -391,19 +399,19 @@ int HAL_WiFi_GetIP(char *ip_buffer, int buffer_len)
 {
     // 检查输入参数是否合法
     if (ip_buffer == NULL || buffer_len <= 0) {
-        printf("Invalid input: ip_buffer is NULL or buffer_len is invalid.\n");
+        LOG("Invalid input: ip_buffer is NULL or buffer_len is invalid.\n");
         return -1;
     }
 
     // 检查全局变量 g_sta_ip 中是否存有 IP 地址
     if (g_sta_ip[0] == '\0') {
-        printf("No IP address available.\n");
+        LOG("No IP address available.\n");
         return -1;
     }
 
     // 检查缓冲区大小是否足够
     if (buffer_len < 16) {
-        printf("Buffer size too small. Needs at least 16 bytes.\n");
+        LOG("Buffer size too small. Needs at least 16 bytes.\n");
         return -1;
     }
 
@@ -418,7 +426,7 @@ int HAL_WiFi_Disconnect(void)
 {
     if(wifi_sta_disconnect() != 0)
     {
-        perror("wifi disconnect fail.\r\n");
+        LOG("wifi disconnect fail.\r\n");
         return -1;
     }else{
         return 0;
@@ -427,7 +435,7 @@ int HAL_WiFi_Disconnect(void)
 
 int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
     if (config == NULL) {
-        perror("Invalid input: config is NULL.\n");
+        LOG("Invalid input: config is NULL.\n");
         return -1;
     }
 
@@ -449,7 +457,7 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
     hapd_conf.security_type = (td_u8)config->security;
     hapd_conf.channel_num = config->channel;
     hapd_conf.wifi_psk_type = 0;  // 假设PSK类型为0
-    printf("hapd_conf.channel_num:%d\r\n", hapd_conf.channel_num);
+    LOG("hapd_conf.channel_num:%d\r\n", hapd_conf.channel_num);
 
     // 高级SoftAp配置
     advanced_conf.beacon_interval = 100;     // Beacon周期设置为100ms
@@ -461,34 +469,34 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
 
     // 设置SoftAp的高级配置
     if (wifi_set_softap_config_advance(&advanced_conf) != 0) {
-        perror("Failed to set advanced SoftAP configuration.\n");
+        LOG("Failed to set advanced SoftAP configuration.\n");
         return -1;
     }
 
     // 启动SoftAp接口
     if (wifi_softap_enable(&hapd_conf) != 0) {
-        perror("Failed to enable SoftAP.\n");
+        LOG("Failed to enable SoftAP.\n");
         return -1;
     }
 
     // 获取网络接口
     netif_p = netif_find(ifname);
     if (netif_p == NULL) {
-        perror("Failed to find network interface: %s.\n", ifname);
+        LOG("Failed to find network interface: %s.\n", ifname);
         (void)wifi_softap_disable();
         return -1;
     }
 
     // 设置IP地址、子网掩码和网关
     if (netifapi_netif_set_addr(netif_p, &st_ipaddr, &st_netmask, &st_gw) != 0) {
-        perror("Failed to set network interface address.\n");
+        LOG("Failed to set network interface address.\n");
         (void)wifi_softap_disable();
         return -1;
     }
 
     // 启动DHCP服务器
     if (netifapi_dhcps_start(netif_p, NULL, 0) != 0) {
-        perror("Failed to start DHCP server.\n");
+        LOG("Failed to start DHCP server.\n");
         (void)wifi_softap_disable();
         return -1;
     }
@@ -497,18 +505,18 @@ int HAL_WiFi_AP_Enable(WiFiAPConfig *config, int tree_level) {
     server_running = true;
     IP_MAC_thread_id = osThreadNew((osThreadFunc_t)HAL_WiFi_CreateIPMACBindingServer, NULL, NULL);
     if (IP_MAC_thread_id == NULL) {
-        perror("Failed to create MAC-IP binding table thread.\n");
+        LOG("Failed to create MAC-IP binding table thread.\n");
         return -1;
     }
 
-    printf("SoftAP started successfully with SSID: %s\n", config->ssid);
+    LOG("SoftAP started successfully with SSID: %s\n", config->ssid);
     return 0;
 }
 
 int HAL_WiFi_AP_Disable(void) {
     // 停止 SoftAp 模式
     if (wifi_softap_disable() != 0) {
-        perror("Failed to disable SoftAP mode.\n");
+        LOG("Failed to disable SoftAP mode.\n");
         return -1;
     }
     server_running = false;
@@ -516,18 +524,18 @@ int HAL_WiFi_AP_Disable(void) {
     osDelay(200); // 等待2s，确保函数执行完成，释放掉socket资源
     osThreadTerminate(IP_MAC_thread_id);
 
-    perror("SoftAP mode disabled.\n");
+    LOG("SoftAP mode disabled.\n");
     return 0;
 }
 
 int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
     if (result == NULL || size == NULL || (*size) == 0) {
-        printf("Invalid input parameters.\n");
+        LOG("Invalid input parameters.\n");
         return -1;
     }
     wifi_sta_info_stru* sta_info = (wifi_sta_info_stru*)malloc(sizeof(wifi_sta_info_stru) * (*size));
     if (sta_info == NULL) {
-        printf("Memory allocation failed.\n");
+        LOG("Memory allocation failed.\n");
         return -1;
     }
 
@@ -541,7 +549,7 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
     }
 
     if (ret != 0) {
-        printf("Failed to get connected STA info.\n");
+        LOG("Failed to get connected STA info.\n");
         return -1;
     }
 
@@ -551,13 +559,13 @@ int HAL_WiFi_GetConnectedSTAInfo(WiFiSTAInfo *result, uint32_t *size) {
 
 int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr) {
     if (mac_addr == NULL) {
-        printf("Invalid input: mac_addr is NULL.\n");
+        LOG("Invalid input: mac_addr is NULL.\n");
         return -1;
     }
     int8_t temp_mac[6] = {0};
     // 获取 SoftAP MAC 地址
     if (wifi_softap_get_mac_addr(temp_mac, 6) != 0) {
-        printf("Failed to get SoftAP MAC address.\n");
+        LOG("Failed to get SoftAP MAC address.\n");
         return -1;
     }
     // 将 MAC 地址拷贝到输出参数中
@@ -567,7 +575,7 @@ int HAL_WiFi_GetAPMacAddress(uint8_t *mac_addr) {
 
 int HAL_WiFi_GetNodeMAC(char *mac){
     if (mac == NULL) {
-        printf("Invalid input: mac is NULL.\n");
+        LOG("Invalid input: mac is NULL.\n");
         return -1;
     }
     // 获取节点的 MAC 地址
@@ -583,14 +591,14 @@ int HAL_WiFi_GetNodeMAC(char *mac){
 
 int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data) {
     if (ip == NULL || data == NULL) {
-        printf("Invalid input: ip or data is NULL.\n");
+        LOG("Invalid input: ip or data is NULL.\n");
         return -1;
     }
 
     // 创建一个 TCP 套接字
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        perror("Failed to create socket.\n");
+        LOG("Failed to create socket.\n");
         return -1;
     }
 
@@ -602,14 +610,14 @@ int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data) {
 
     // 将 IP 地址转换为网络字节序
     if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
-        perror("IP address conversion failed.\n");
+        LOG("IP address conversion failed.\n");
         closesocket(sockfd);
         return -1;
     }
 
     // 连接到服务器
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Failed to connect to server.\n");
+        LOG("Failed to connect to server.\n");
         closesocket(sockfd);
         return -1;
     }
@@ -617,7 +625,7 @@ int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data) {
     // 发送数据
     int ret = send(sockfd, data, strlen(data), 0);
     if (ret < 0) {
-        perror("Failed to send data.\n");
+        LOG("Failed to send data.\n");
         closesocket(sockfd);
         return -1;
     }
@@ -629,14 +637,14 @@ int HAL_WiFi_Send_data(const char *ip, uint16_t port, const char *data) {
 
 int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffer_len, char *client_ip) {
     if (ip == NULL || buffer == NULL || buffer_len <= 0) {
-        printf("Invalid input: ip, buffer or buffer_len is invalid.\n");
+        LOG("Invalid input: ip, buffer or buffer_len is invalid.\n");
         return -1;
     }
 
     // 创建一个 TCP 套接字
     int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sock < 0) {
-        perror("Failed to create socket.\n");
+        LOG("Failed to create socket.\n");
         return -1;
     }
 
@@ -648,21 +656,21 @@ int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffe
 
     // 将 IP 地址转换为网络字节序
     if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
-        perror("IP address conversion failed.\n");
+        LOG("IP address conversion failed.\n");
         closesocket(listen_sock);
         return -1;
     }
 
     // 绑定地址和端口
     if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr))) {
-        perror("Failed to bind socket.\n");
+        LOG("Failed to bind socket.\n");
         closesocket(listen_sock);
         return -1;
     }
 
     // 开始监听连接请求
     if (listen(listen_sock, 8) < 0) {
-        perror("Failed to listen on socket.\n");
+        LOG("Failed to listen on socket.\n");
         closesocket(listen_sock);
         return -1;
     }
@@ -671,7 +679,7 @@ int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffe
     socklen_t client_addr_len = sizeof(client_addr);
     int client_sock = accept(listen_sock, (struct sockaddr *)&client_addr, &client_addr_len);
     if (client_sock < 0) {
-        perror("Failed to accept connection.\n");
+        LOG("Failed to accept connection.\n");
         closesocket(listen_sock);
         return -1;
     }
@@ -679,7 +687,7 @@ int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffe
     // 接收数据
     int ret = recv(client_sock, buffer, buffer_len - 1, 0);
     if (ret < 0) {
-        perror("Failed to receive data.\n");
+        LOG("Failed to receive data.\n");
         closesocket(client_sock);
         closesocket(listen_sock);
         return -1;
@@ -699,14 +707,14 @@ int HAL_WiFi_Receive_data(const char *ip, uint16_t port, char *buffer, int buffe
 
 int HAL_WiFi_GetAPConfig(WiFiAPConfig *config) {
     if (config == NULL) {
-        perror("Invalid input: config is NULL.\n");
+        LOG("Invalid input: config is NULL.\n");
         return -1;
     }
 
     // 获取 SoftAP 配置
     softap_config_stru ap_config;
     if (wifi_get_softap_config(&ap_config) != 0) {
-        perror("Failed to get SoftAP configuration.\n");
+        LOG("Failed to get SoftAP configuration.\n");
         return -1;
     }
 
@@ -737,7 +745,7 @@ void add_mac_ip_binding(const char *mac, const char *ip) {
     // 创建新的节点
     MAC_IP_Node *new_node = (MAC_IP_Node *)malloc(sizeof(MAC_IP_Node));
     if (new_node == NULL) {
-        printf("Memory allocation failed!\n");
+        LOG("Memory allocation failed!\n");
         return;
     }
 
@@ -751,7 +759,7 @@ void add_mac_ip_binding(const char *mac, const char *ip) {
     new_node->next = head;
     head = new_node;
 
-    printf("Added MAC: %s, IP: %s\n", new_node->binding.mac, new_node->binding.ip);
+    LOG("Added MAC: %s, IP: %s\n", new_node->binding.mac, new_node->binding.ip);
     len_mac_ip_list++;
 }
 
@@ -773,7 +781,7 @@ void remove_mac_ip_binding(const char *mac) {
 
             // 释放节点的内存
             free(current);
-            printf("Removed MAC: %s\n", mac);
+            LOG("Removed MAC: %s\n", mac);
             return;
         }
 
@@ -782,7 +790,7 @@ void remove_mac_ip_binding(const char *mac) {
         current = current->next;
     }
 
-    printf("MAC: %s not found.\n", mac);
+    LOG("MAC: %s not found.\n", mac);
     len_mac_ip_list--;
 }
 
@@ -821,9 +829,9 @@ void add_mac_ip_bindings_counts(void) {
 void print_mac_ip_bindings(void) {
     MAC_IP_Node *current = head;
 
-    printf("Current MAC-IP Bindings:\n");
+    LOG("Current MAC-IP Bindings:\n");
     while (current != NULL) {
-        printf("MAC: %s, IP: %s, count: %d\n", current->binding.mac, current->binding.ip, current->count);
+        LOG("MAC: %s, IP: %s, count: %d\n", current->binding.mac, current->binding.ip, current->count);
         current = current->next;
     }
 }
@@ -839,7 +847,7 @@ void delete_mac_ip_list(void) {
     }
 
     head = NULL;  // 头指针置空，链表删除完成
-    printf("All MAC-IP bindings have been deleted.\n");
+    LOG("All MAC-IP bindings have been deleted.\n");
     len_mac_ip_list = 0;
 }
 
@@ -863,7 +871,7 @@ void delete_leave_sta_mac_ip_list(WiFiSTAInfo *sta_info, uint32_t sta_num) {
         for (uint32_t i = 0; i < sta_num; i++) {
             char sta_mac[7];
             get_last_three_mac(sta_mac, sta[i].mac_addr);
-            printf("sta_mac: %s\n", sta_mac);
+            LOG("sta_mac: %s\n", sta_mac);
             if (strncmp(current->binding.mac, sta_mac, 7) == 0) {
                 found = true;
                 break;
@@ -892,7 +900,7 @@ void delete_leave_sta_mac_ip_list(WiFiSTAInfo *sta_info, uint32_t sta_num) {
 
 int HAL_WiFi_GetAllMAC(char ***mac_list) {
     if (mac_list == NULL) {
-        printf("Invalid input parameters.\n");
+        LOG("Invalid input parameters.\n");
         return -1;
     }
 
@@ -906,7 +914,7 @@ int HAL_WiFi_GetAllMAC(char ***mac_list) {
     // 分配指针数组，大小为 len_mac_ip_list
     *mac_list = (char **)malloc(len_mac_ip_list * sizeof(char *));
     if (*mac_list == NULL) {
-        printf("Memory allocation failed.\n");
+        LOG("Memory allocation failed.\n");
         return -1;
     }
 
@@ -914,7 +922,7 @@ int HAL_WiFi_GetAllMAC(char ***mac_list) {
     while (current != NULL) {
         (*mac_list)[count] = (char *)malloc(7 * sizeof(char));  // 分配空间给每个MAC地址
         if ((*mac_list)[count] == NULL) {
-            printf("Memory allocation failed.\n");
+            LOG("Memory allocation failed.\n");
             return -1;
         }
         strcpy((*mac_list)[count], current->binding.mac);
@@ -932,14 +940,14 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
     // 创建一个 TCP 套接字
     int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sock < 0) {
-        perror("Failed to create socket.\n");
+        LOG("Failed to create socket.\n");
         return;
     }
 
     // 设置 SO_REUSEADDR 套接字选项，允许端口复用
     int optval = 1;
     if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
-        perror("Failed to set socket options.\n");
+        LOG("Failed to set socket options.\n");
         closesocket(listen_sock);
         return;
     }
@@ -953,14 +961,14 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
 
     // 绑定地址和端口
     if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Failed to bind socket.\n");
+        LOG("Failed to bind socket.\n");
         closesocket(listen_sock);
         return;
     }
 
     // 开始监听连接请求
     if (listen(listen_sock, 8) < 0) {
-        perror("Failed to listen on socket.\n");
+        LOG("Failed to listen on socket.\n");
         closesocket(listen_sock);
         return;
     }
@@ -971,7 +979,7 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
     timeout.tv_usec = 0;
     setsockopt(listen_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
 
-    printf("Server is listening on port 9000...\n");
+    LOG("Server is listening on port 9000...\n");
     char mac[7];
     char ip[16];
     while (server_running) {  // 使用全局标志控制循环
@@ -996,14 +1004,14 @@ void HAL_WiFi_CreateIPMACBindingServer(void) {
             strcpy(mac, buffer);
             inet_ntop(AF_INET, &client_addr.sin_addr, ip, INET_ADDRSTRLEN);
             add_mac_ip_binding(mac, ip);
-            printf("Received data: %s\n", buffer);
+            LOG("Received data: %s\n", buffer);
         }
         closesocket(client_sock);
     }
 
     // 关闭监听套接字
     closesocket(listen_sock);
-    printf("Server stopped.\n");
+    LOG("Server stopped.\n");
 }
 
 void HAL_WiFi_CreateIPMACBindingClient(void) {
@@ -1014,9 +1022,9 @@ void HAL_WiFi_CreateIPMACBindingClient(void) {
         HAL_WiFi_GetNodeMAC(mac);
         if(HAL_WiFi_Send_data(ip, 9000, mac) != 0)
         {
-            perror("send data fail.\r\n");
+            LOG("send data fail.\r\n");
         }else{
-            printf("send data success.\r\n");
+            LOG("send data success.\r\n");
         }
         osDelay(100);
     }
@@ -1024,7 +1032,7 @@ void HAL_WiFi_CreateIPMACBindingClient(void) {
 
 int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data) {
     if (MAC == NULL || data == NULL) {
-        printf("Invalid input: MAC or data is NULL.\n");
+        LOG("Invalid input: MAC or data is NULL.\n");
         return -1;
     }
 
@@ -1040,12 +1048,12 @@ int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data) {
     }
 
     if (current == NULL) {
-        perror("MAC: %s not found.\n", MAC);
+        LOG("MAC: %s not found.\n", MAC);
         return -1;
     }
     if(HAL_WiFi_Send_data(ip, 9001, data) != 0){
     
-        perror("send data fail.\r\n");
+        LOG("send data fail.\r\n");
         return -2;
     }
     
@@ -1054,7 +1062,7 @@ int HAL_WiFi_Send_data_by_MAC(const char *MAC, const char *data) {
 
 int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level) {
     if (data == NULL) {
-        printf("Invalid input: data is NULL.\n");
+        LOG("Invalid input: data is NULL.\n");
         return -1;
     }
 
@@ -1062,7 +1070,7 @@ int HAL_WiFi_Send_data_to_parent(const char *data, int tree_level) {
     snprintf(ip, sizeof(ip), "192.168.%d.1", tree_level);
 
     if(HAL_WiFi_Send_data(ip, 9001, data) != 0){
-        perror("send data fail.\r\n");
+        LOG("send data fail.\r\n");
         return -1;
     }
     return 0;
@@ -1072,14 +1080,14 @@ int HAL_WiFi_Create_Server(uint16_t port) {
     // 创建一个 TCP 套接字
     int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sock < 0) {
-        perror("Failed to create socket.\n");
+        LOG("Failed to create socket.\n");
         return -1;
     }
 
     // 设置 SO_REUSEADDR 套接字选项，允许端口复用
     int optval = 1;
     if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
-        perror("Failed to set socket options.\n");
+        LOG("Failed to set socket options.\n");
         closesocket(listen_sock);
         return -1;
     }
@@ -1093,14 +1101,14 @@ int HAL_WiFi_Create_Server(uint16_t port) {
 
     // 绑定地址和端口
     if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Failed to bind socket.\n");
+        LOG("Failed to bind socket.\n");
         closesocket(listen_sock);
         return -1;
     }
 
     // 开始监听连接请求
     if (listen(listen_sock, 8) < 0) {
-        perror("Failed to listen on socket.\n");
+        LOG("Failed to listen on socket.\n");
         closesocket(listen_sock);
         return -1;
     }
@@ -1116,7 +1124,7 @@ int HAL_WiFi_Create_Server(uint16_t port) {
 
 int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_len) {
     if (server_fd < 0 || buffer == NULL || buffer_len <= 0) {
-        printf("Invalid input: server_fd, buffer or buffer_len is invalid.\n");
+        LOG("Invalid input: server_fd, buffer or buffer_len is invalid.\n");
         return -1;
     }
 
@@ -1131,7 +1139,7 @@ int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_l
     // 接收数据
     int ret = recv(client_sock, buffer, buffer_len - 1, 0);
     if (ret < 0) {
-        perror("Failed to receive data.\n");
+        LOG("Failed to receive data.\n");
         closesocket(client_sock);
         return -1;
     }
@@ -1151,7 +1159,7 @@ int HAL_WiFi_Server_Receive(int server_fd, char *mac, char *buffer, int buffer_l
 
 int HAL_WiFi_Close_Server(int server_fd) {
     if (server_fd < 0) {
-        printf("Invalid input: server_fd is invalid.\n");
+        LOG("Invalid input: server_fd is invalid.\n");
         return -1;
     }
 

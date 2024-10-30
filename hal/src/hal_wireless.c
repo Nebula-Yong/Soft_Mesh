@@ -3,6 +3,17 @@
 #include <stdio.h>
 #include <string.h>
 #include "cmsis_os2.h"
+#include "std_def.h"
+
+// 定义宏开关，打开或关闭日志输出
+#define ENABLE_LOG 0  // 1 表示开启日志，0 表示关闭日志
+
+// 定义 LOG 宏，如果 ENABLE_LOG 为 1，则打印日志，并输出文件名、行号、日志内容
+#if ENABLE_LOG
+    #define LOG(fmt, ...) printf("LOG [%s:%d]: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#else
+    #define LOG(fmt, ...) do { UNUSED(fmt); } while (0) 
+#endif
 
 osEventFlagsId_t wireless_event_flags;  // wifi连接事件标志对象
 #define WIRELESS_CONNECT_BIT    (1 << 0)
@@ -23,15 +34,15 @@ int HAL_Wireless_Init(WirelessType type)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块初始化函数
             // ret = HAL_Bluetooth_Init();
-            printf("Bluetooth module initialization not implemented.\n");
+            LOG("Bluetooth module initialization not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块初始化函数
             // ret = HAL_nearlink_Init();
-            printf("nearlink module initialization not implemented.\n");
+            LOG("nearlink module initialization not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -52,15 +63,15 @@ int HAL_Wireless_Deinit(WirelessType type)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块去初始化函数
             // ret = HAL_Bluetooth_Deinit();
-            printf("Bluetooth module deinitialization not implemented.\n");
+            LOG("Bluetooth module deinitialization not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块去初始化函数
             // ret = HAL_nearlink_Deinit();
-            printf("nearlink module deinitialization not implemented.\n");
+            LOG("nearlink module deinitialization not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -81,15 +92,15 @@ int HAL_Wireless_Start(WirelessType type)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块启动函数
             // ret = HAL_Bluetooth_Enable();
-            printf("Bluetooth module start not implemented.\n");
+            LOG("Bluetooth module start not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块启动函数
             // ret = HAL_nearlink_Enable();
-            printf("nearlink module start not implemented.\n");
+            LOG("nearlink module start not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -110,15 +121,15 @@ int HAL_Wireless_Stop(WirelessType type)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块停止函数
             // ret = HAL_Bluetooth_Disable();
-            printf("Bluetooth module stop not implemented.\n");
+            LOG("Bluetooth module stop not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块停止函数
             // ret = HAL_nearlink_Disable();
-            printf("nearlink module stop not implemented.\n");
+            LOG("nearlink module stop not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -146,15 +157,15 @@ int HAL_Wireless_EnableAP(WirelessType type, const WirelessAPConfig *config, int
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块AP模式启动函数
             // ret = HAL_Bluetooth_EnableAP(config);
-            printf("Bluetooth AP mode start not implemented.\n");
+            LOG("Bluetooth AP mode start not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块AP模式启动函数
             // ret = HAL_nearlink_EnableAP(config);
-            printf("nearlink AP mode start not implemented.\n");
+            LOG("nearlink AP mode start not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -175,15 +186,15 @@ int HAL_Wireless_DisableAP(WirelessType type)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块AP模式停止函数
             // ret = HAL_Bluetooth_DisableAP();
-            printf("Bluetooth AP mode stop not implemented.\n");
+            LOG("Bluetooth AP mode stop not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块AP模式停止函数
             // ret = HAL_nearlink_DisableAP();
-            printf("nearlink AP mode stop not implemented.\n");
+            LOG("nearlink AP mode stop not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -213,15 +224,15 @@ int HAL_Wireless_Scan(WirelessType type, WirelessSTAConfig *wifi_config, Wireles
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块扫描函数
             // ret = HAL_Bluetooth_Scan(results, max_results);
-            printf("Bluetooth scan not implemented.\n");
+            LOG("Bluetooth scan not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块扫描函数
             // ret = HAL_nearlink_Scan(results, max_results);
-            printf("nearlink scan not implemented.\n");
+            LOG("nearlink scan not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -249,15 +260,15 @@ int HAL_Wireless_Connect(WirelessType type, WirelessSTAConfig *config)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块连接函数
             // ret = HAL_Bluetooth_Connect(config);
-            printf("Bluetooth connect not implemented.\n");
+            LOG("Bluetooth connect not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块连接函数
             // ret = HAL_nearlink_Connect(config);
-            printf("nearlink connect not implemented.\n");
+            LOG("nearlink connect not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -278,15 +289,15 @@ int HAL_Wireless_Disconnect(WirelessType type)
         case WIRELESS_TYPE_BLUETOOTH:
             // 蓝牙模块断开连接函数
             // ret = HAL_Bluetooth_Disconnect();
-            printf("Bluetooth disconnect not implemented.\n");
+            LOG("Bluetooth disconnect not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // 星闪模块断开连接函数
             // ret = HAL_nearlink_Disconnect();
-            printf("nearlink disconnect not implemented.\n");
+            LOG("nearlink disconnect not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -303,7 +314,7 @@ int HAL_Wireless_GetIP(WirelessType type, char *ip_buffer, int buffer_len)
     if (type == WIRELESS_TYPE_WIFI) {
         return HAL_WiFi_GetIP(ip_buffer, buffer_len);  // 获取Wi-Fi IP地址
     } else {
-        printf("IP address retrieval only supported for Wi-Fi.\n");
+        LOG("IP address retrieval only supported for Wi-Fi.\n");
         return -1;
     }
 }
@@ -324,14 +335,14 @@ int HAL_Wireless_GetConnectedDeviceInfo(WirelessType type, WirelessConnectedInfo
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_GetConnectedDeviceInfo(result, size);
-            printf("Bluetooth connected device info retrieval not implemented.\n");
+            LOG("Bluetooth connected device info retrieval not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_GetConnectedDeviceInfo(result, size);
-            printf("nearlink connected device info retrieval not implemented.\n");
+            LOG("nearlink connected device info retrieval not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -352,14 +363,14 @@ int HAL_Wireless_GetAPMacAddress(WirelessType type, uint8_t *mac)
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_GetAPMacAddress(mac);
-            printf("Bluetooth AP MAC address retrieval not implemented.\n");
+            LOG("Bluetooth AP MAC address retrieval not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_GetAPMacAddress(mac);
-            printf("nearlink AP MAC address retrieval not implemented.\n");
+            LOG("nearlink AP MAC address retrieval not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -380,14 +391,14 @@ int HAL_Wireless_GetNodeMAC(WirelessType type, char *mac) {
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_GetNodeMAC(mac);
-            printf("Bluetooth node MAC address retrieval not implemented.\n");
+            LOG("Bluetooth node MAC address retrieval not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_GetNodeMAC(mac);
-            printf("nearlink node MAC address retrieval not implemented.\n");
+            LOG("nearlink node MAC address retrieval not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -413,21 +424,21 @@ int HAL_Wireless_SendData_to_child(WirelessType type, const char *MAC, const cha
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_Send_data_by_MAC(MAC, data);
             if(ret == 0) {
-                printf("Data sent successfully to %s.\n", ip);
+                LOG("Data sent successfully to %s.\n", ip);
             } else {
-                printf("Failed to send data to %s.\n", ip);
+                LOG("Failed to send data to %s.\n", ip);
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_SendData(MAC, data);
-            printf("Bluetooth data send not implemented.\n");
+            LOG("Bluetooth data send not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_SendData(MAC, data);
-            printf("nearlink data send not implemented.\n");
+            LOG("nearlink data send not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -446,21 +457,21 @@ int HAL_Wireless_SendData_to_parent(WirelessType type, const char *data, int tre
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_Send_data_to_parent(data, tree_level);
             if(ret == 0) {
-                printf("Data sent successfully to parent node at level %d.\n", tree_level);
+                LOG("Data sent successfully to parent node at level %d.\n", tree_level);
             } else {
-                printf("Failed to send data to parent node at level %d.\n", tree_level);
+                LOG("Failed to send data to parent node at level %d.\n", tree_level);
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_SendData_to_parent(data, tree_level);
-            printf("Bluetooth data send to parent not implemented.\n");
+            LOG("Bluetooth data send to parent not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_SendData_to_parent(data, tree_level);
-            printf("nearlink data send to parent not implemented.\n");
+            LOG("nearlink data send to parent not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -477,21 +488,21 @@ int HAL_Wireless_CreateServer(WirelessType type) {
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_Create_Server(9001);
             if(ret >= 0) {
-                printf("Wi-Fi server created successfully.\n");
+                LOG("Wi-Fi server created successfully.\n");
             } else {
-                printf("Failed to create Wi-Fi server.\n");
+                LOG("Failed to create Wi-Fi server.\n");
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_CreateServer(8080);
-            printf("Bluetooth server creation not implemented.\n");
+            LOG("Bluetooth server creation not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_CreateServer(8080);
-            printf("nearlink server creation not implemented.\n");
+            LOG("nearlink server creation not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -509,21 +520,21 @@ int HAL_Wireless_CloseServer(WirelessType type, int server_fd) {
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_Close_Server(server_fd);
             if(ret == 0) {
-                printf("Wi-Fi server closed successfully.\n");
+                LOG("Wi-Fi server closed successfully.\n");
             } else {
-                printf("Failed to close Wi-Fi server.\n");
+                LOG("Failed to close Wi-Fi server.\n");
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_CloseServer(server_fd);
-            printf("Bluetooth server close not implemented.\n");
+            LOG("Bluetooth server close not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_CloseServer(server_fd);
-            printf("nearlink server close not implemented.\n");
+            LOG("nearlink server close not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -544,19 +555,19 @@ int HAL_Wireless_ReceiveDataFromClient(WirelessType type, int server_fd, char *m
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_Server_Receive(server_fd, mac, buffer, buffer_len);
             if(ret >= 0) {
-                // printf("Data received from client %s: %s\n", mac, buffer);
+                // LOG("Data received from client %s: %s\n", mac, buffer);
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_ReceiveDataFromClient(server_fd, mac, buffer, buffer_len);
-            printf("Bluetooth data receive from client not implemented.\n");
+            LOG("Bluetooth data receive from client not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_ReceiveDataFromClient(server_fd, mac, buffer, buffer_len);
-            printf("nearlink data receive from client not implemented.\n");
+            LOG("nearlink data receive from client not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
@@ -575,21 +586,21 @@ int HAL_Wireless_GetChildMACs(WirelessType type, char ***mac_list) {
         case WIRELESS_TYPE_WIFI:
             ret = HAL_WiFi_GetAllMAC(mac_list);
             if(ret >= 0) {
-                printf("Successfully retrieved %d child MAC addresses.\n", ret);
+                LOG("Successfully retrieved %d child MAC addresses.\n", ret);
             } else {
-                printf("Failed to retrieve child MAC addresses.\n");
+                LOG("Failed to retrieve child MAC addresses.\n");
             }
             break;
         case WIRELESS_TYPE_BLUETOOTH:
             // ret = HAL_Bluetooth_GetChildMACs(mac_list);
-            printf("Bluetooth child MAC retrieval not implemented.\n");
+            LOG("Bluetooth child MAC retrieval not implemented.\n");
             break;
         case WIRELESS_TYPE_NEARLINK:
             // ret = HAL_nearlink_GetChildMACs(mac_list);
-            printf("nearlink child MAC retrieval not implemented.\n");
+            LOG("nearlink child MAC retrieval not implemented.\n");
             break;
         default:
-            printf("Unknown wireless type!\n");
+            LOG("Unknown wireless type!\n");
             return -1;
     }
     return ret;
