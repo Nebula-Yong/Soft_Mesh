@@ -44,6 +44,8 @@ typedef struct {
 
 void broadcast_data_packet(DataPacket packet);
 
+void send_data_packet(const char *dest_mac, const char *data);
+
 char* generate_data_packet(DataPacket packet);
 
 void route_transport_task(void);

@@ -31,8 +31,6 @@ HashTable* table = NULL;  // 定义哈希表
 
 struct Graph* graph = NULL;  // 定义图
 
-void send_data_packet(const char *dest_mac, const char *data);
-
 // 简单的哈希函数，将MAC地址转化为哈希值
 unsigned int hash(unsigned char *mac) {
     unsigned int hash_value = 0;

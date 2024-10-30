@@ -6,6 +6,7 @@
 #include "network_fsm.h"
 #include "routing_transport.h"
 #include "hal_wireless.h"
+#include "mesh_api.h"
 
 // 定义宏开关，打开或关闭日志输出
 #define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
@@ -90,6 +91,23 @@ int mesh_init(const char *ssid, const char *password) {
     return 0;
 }
 
+int mesh_send_data(const char *dest_mac, const char *data) {
+    // 检查网络是否连接
+    if (network_connected() != 1) {
+        LOG("Network is not connected.\n");
+        return -1;
+    }
+    // DataPacket packet;
+    // 如果目标MAC地址是广播地址，则直接广播数据包
+    if (strcmp(dest_mac, "FFFFFF") == 0) {
+        mesh_broadcast(data);
+    }else{
+        // 如果目标MAC地址不是广播地址，则向目标节点发送数据包
+        send_data_packet(dest_mac, data);
+    }
+    return 0;
+}
+
 int mesh_broadcast(const char *data) {
     // 检查网络是否连接
     if (network_connected() != 1) {
@@ -130,6 +148,10 @@ int mesh_recv_data(char *src_mac, char *data) {
     osStatus_t status = osMessageQueueGet(dataPacketQueueId, &packet, NULL, 0);
     if (status != osOK) {
         LOG("no data in queue.\n");
+        return -1;
+    }
+    if (packet.status == '1') {
+        LOG("Received a ack packet.\n");
         return -1;
     }
     // 解析数据包
