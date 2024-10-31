@@ -9,7 +9,7 @@
 #include "mesh_api.h"
 
 // 定义宏开关，打开或关闭日志输出
-#define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
+#define ENABLE_LOG 0  // 1 表示开启日志，0 表示关闭日志
 
 // 定义 LOG 宏，如果 ENABLE_LOG 为 1，则打印日志，并输出文件名、行号、日志内容
 #if ENABLE_LOG
@@ -159,4 +159,8 @@ int mesh_recv_data(char *src_mac, char *data) {
     src_mac[MAC_SIZE] = '\0';
     strcpy(data, packet.data);
     return 0;
+}
+
+int mesh_network_connected(void) {
+    return network_connected();
 }

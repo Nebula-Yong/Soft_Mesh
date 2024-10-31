@@ -19,13 +19,13 @@ osEventFlagsId_t route_transport_event_flags;
 #define ROUTE_TRANSPORT_STOP_BIT  (1 << 1)
 
 // 定义宏开关，打开或关闭日志输出
-#define ENABLE_LOG 1  // 1 表示开启日志，0 表示关闭日志
+#define ENABLE_LOG 0  // 1 表示开启日志，0 表示关闭日志
 
-// 定义 LOG 宏，如果 ENABLE_LOG 为 1，则打印日志，并输出文件名、行号、日志内容
+// 定义 LOG 宏，如果 ENABLE_LOG 为 1，则打印日志，并输出文件名、行号、日志内容; 如果为0，则不输出日志，unused传进来的变量
 #if ENABLE_LOG
     #define LOG(fmt, ...) printf("LOG [%s:%d]: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #else
-    #define LOG(fmt, ...) // 空实现，日志输出被禁用
+    #define LOG(fmt, ...) 
 #endif
 
 #define MAX_SCAN_RESULTS 64 // 最大扫描数量
