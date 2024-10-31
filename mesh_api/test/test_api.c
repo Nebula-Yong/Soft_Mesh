@@ -25,6 +25,11 @@ void test_api_task(void)
     }
     while (1)
     {
+        if (mesh_network_connected() == 0) {
+            LOG("Mesh network not connected.\n");
+            osDelay(100);
+            continue;
+        }
         osDelay(100);
         // if (mesh_broadcast("Hello, Mesh!") != 0) {
         //     LOG("mesh_broadcast failed.\n");

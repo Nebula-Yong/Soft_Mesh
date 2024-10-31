@@ -160,3 +160,7 @@ int mesh_recv_data(char *src_mac, char *data) {
     strcpy(data, packet.data);
     return 0;
 }
+
+int mesh_network_connected(void) {
+    return network_connected();
+}
